@@ -1,17 +1,14 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'NordNMGui.ui'
-#
-# Created by: PyQt5 UI code generator 5.11.3
-#
-# WARNING! All changes made in this file will be lost!
 import sys
-import pycountry
+import requests
+from collections import namedtuple
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 connection_type_options = ['UDP', 'TCP']
 server_type_options = ['P2P', 'Standard', 'Double VPN', 'TOR over VPN', 'Dedicated IP', 'Anti-DDoS']
-country_name_list = [country.name for country in pycountry.countries]
+ServerInfo = namedtuple('ServerInfo', 'name, domain, country, server_type, connection_type')
+api = "https://api.nordvpn.com/server"
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
@@ -130,7 +127,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.line_2.setFrameShadow(QtWidgets.QFrame.Sunken)
         self.line_2.setObjectName("line_2")
         self.verticalLayout_4.addWidget(self.line_2)
-        self.server_list = QtWidgets.QListView(self.centralwidget)
+        self.server_list = QtWidgets.QListWidget(self.centralwidget)
         self.server_list.setObjectName("server_list")
         self.verticalLayout_4.addWidget(self.server_list)
         self.gridLayout.addLayout(self.verticalLayout_4, 1, 1, 1, 1)
@@ -151,14 +148,63 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusbar.setObjectName("statusbar")
         self.setStatusBar(self.statusbar)
         self.center_on_screen()
+        self.show()
 
+        self.api_data = self.get_api_data()
+        server_country_list = self.get_country_list(self.api_data)
         self.connection_type_select.addItems(connection_type_options)
         self.server_type_select.addItems(server_type_options)
-        self.country_list.addItems(country_name_list)
+        self.country_list.addItems(server_country_list)
+        self.country_list.setCurrentRow(0)
+        item = self.country_list.currentItem()
+        self.country_list.itemClicked.connect(self.get_server_list)
+
+
         self.retranslateUi()
         QtCore.QMetaObject.connectSlotsByName(self)
         QtWidgets.QApplication.processEvents()
-        self.show()
+
+
+    def get_api_data(self):
+        try:
+            resp = requests.get(api, timeout=5)
+            if resp.status_code is requests.codes.ok:
+                return resp.json()
+            else:
+                print("Get API failed")
+        except Exception as ex:
+            print("Get API failed")
+
+    def get_country_list(self, api_data):
+        server_country_list = []
+        for server in api_data:
+            country = server['country']
+            if country not in server_country_list:
+                server_country_list.append(country)
+        return sorted(server_country_list)
+
+    def get_server_list(self):
+        server_name_list = []
+        filtered = self.country_list.currentItem().text()
+        self.server_list.clear()
+        for server in self.api_data:
+            name = server['name']
+            load = server['load']
+            country = server['country']
+            categories = server['categories']
+            server_categories = ''
+            for category in categories:
+                if category['name'] == 'Standard VPN servers':
+                    server_categories += 'Standard '
+                else:
+                    server_categories += category['name'] + ' '
+            if (name not in server_name_list) and (country == filtered):
+                server_name_list.append(name + '\n' + 'Load: ' + str(load) + '%\n' + "Categories: " + server_categories)
+        self.server_list.addItems(sorted(server_name_list))
+        QtWidgets.QApplication.processEvents()
+        self.retranslateUi()
+
+
 
     def center_on_screen(self):
         resolution = QtWidgets.QDesktopWidget().screenGeometry()
