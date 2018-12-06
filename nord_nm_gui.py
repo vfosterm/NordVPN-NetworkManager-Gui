@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 
 import sys
+import os
 import requests
-from collections import namedtuple
+import shutil
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 connection_type_options = ['UDP', 'TCP']
-server_type_options = ['P2P', 'Standard', 'Double VPN', 'TOR over VPN', 'Dedicated IP', 'Anti-DDoS']
-ServerInfo = namedtuple('ServerInfo', 'name, domain, country, server_type, connection_type')
+server_type_options = ['P2P', 'Standard', 'Double VPN', 'TOR over VPN', 'Dedicated IP', 'Anti-DDoS', 'Obfuscated Server']
 api = "https://api.nordvpn.com/server"
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -150,7 +150,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.center_on_screen()
         self.show()
 
+        self.config_path = os.path.join(os.path.abspath(os.getcwd()), '.configs')
         self.api_data = self.get_api_data()
+        self.domain_list = []
         server_country_list = self.get_country_list(self.api_data)
         self.connection_type_select.addItems(connection_type_options)
         self.server_type_select.addItems(server_type_options)
@@ -158,12 +160,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.country_list.setCurrentRow(0)
         item = self.country_list.currentItem()
         self.country_list.itemClicked.connect(self.get_server_list)
-
+        self.server_type_select.currentTextChanged.connect(self.get_server_list)
+        self.connect_btn.clicked.connect(self.connect)
 
         self.retranslateUi()
         QtCore.QMetaObject.connectSlotsByName(self)
         QtWidgets.QApplication.processEvents()
-
 
     def get_api_data(self):
         try:
@@ -185,25 +187,64 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def get_server_list(self):
         server_name_list = []
-        filtered = self.country_list.currentItem().text()
+        filtered = self.country_list.currentItem().text(), self.server_type_select.currentText(), self.connection_type_select.currentText()
         self.server_list.clear()
+        self.domain_list.clear()
         for server in self.api_data:
-            name = server['name']
-            load = server['load']
-            country = server['country']
+            name       = server['name']
+            load       = server['load']
+            domain     = server['domain']
+            country    = server['country']
             categories = server['categories']
+
             server_categories = ''
+            server_category_list = []
             for category in categories:
                 if category['name'] == 'Standard VPN servers':
                     server_categories += 'Standard '
+                    server_category_list.append('Standard')
+                elif category['name'] == 'P2P':
+                    server_categories += category['name'] + ' '
+                    server_category_list.append('P2P')
+                elif category['name'] == 'Anti-DDoS':
+                    server_categories += category['name'] + ' '
+                    server_category_list.append('Anti-DDoS')
+                elif category['name'] == 'Obfuscated Servers':
+                    server_categories += 'Obfuscated'
+                    server_category_list.append('Obfuscated Server')
+                elif category['name'] == 'Dedicated IP':
+                    server_categories += category['name'] + ' '
+                    server_category_list.append('Dedicated IP')
+                elif category['name'] == 'Double VPN':
+                    server_categories += category['name'] + ' '
+                    server_category_list.append('Double VPN')
+
+                elif category['name'] == 'Onion over VPN':
+                    server_categories += category['name'] + ' '
+                    server_category_list.append('TOR over VPN')
                 else:
                     server_categories += category['name'] + ' '
-            if (name not in server_name_list) and (country == filtered):
-                server_name_list.append(name + '\n' + 'Load: ' + str(load) + '%\n' + "Categories: " + server_categories)
+            if (name not in server_name_list) and (country == filtered[0]) and (filtered[1] in server_category_list):
+                server_name_list.append(name + '\n' + 'Load: ' + str(load) + '%\n' + "Domain: " + domain + '\n' + "Categories: " + server_categories)
+                self.domain_list.append(domain)
         self.server_list.addItems(sorted(server_name_list))
         QtWidgets.QApplication.processEvents()
         self.retranslateUi()
+        print(sorted(self.domain_list))
+        self.domain_list = sorted(self.domain_list)
 
+    def connect(self):
+        # https://downloads.nordcdn.com/configs/files/ovpn_udp/servers/sg173.nordvpn.com.udp.ovpn
+        if self.connection_type_select.currentText() == 'UDP':
+            filename = self.domain_list[self.server_list.currentRow()] + '.udp.ovpn'
+            ovpn_file = requests.get('https://downloads.nordcdn.com/configs/files/ovpn_udp/servers/' + filename, stream=True)
+            with open(os.path.join(self.config_path, filename), 'wb') as out_file:
+                shutil.copyfileobj(ovpn_file.raw, out_file)
+        elif self.connection_type_select.currentText() == 'TCP':
+            filename = self.domain_list[self.server_list.currentRow()] + '.tcp.ovpn'
+            ovpn_file = requests.get('https://downloads.nordcdn.com/configs/files/ovpn_tcp/servers/' + filename, stream=True)
+            with open(os.path.join(self.config_path, filename), 'wb') as out_file:
+                shutil.copyfileobj(ovpn_file.raw, out_file)
 
 
     def center_on_screen(self):
