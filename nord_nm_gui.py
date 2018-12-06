@@ -4,19 +4,27 @@ import sys
 import os
 import requests
 import shutil
+import json
+import hashlib
+import time
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 connection_type_options = ['UDP', 'TCP']
 server_type_options = ['P2P', 'Standard', 'Double VPN', 'TOR over VPN', 'Dedicated IP', 'Anti-DDoS', 'Obfuscated Server']
 api = "https://api.nordvpn.com/server"
 
+
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
         self.setObjectName("MainWindowObject")
-        self.resize(600, 650)
         self.setWindowIcon(QtGui.QIcon('nordvpnicon.png'))
-        QtWidgets.QApplication.setStyle("breeze")
+        self.login_ui()
+        self.center_on_screen()
+        self.show()
+
+    def main_ui(self):
+        self.resize(600, 650)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -147,8 +155,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusbar = QtWidgets.QStatusBar(self)
         self.statusbar.setObjectName("statusbar")
         self.setStatusBar(self.statusbar)
-        self.center_on_screen()
-        self.show()
+
 
         self.config_path = os.path.join(os.path.abspath(os.getcwd()), '.configs')
         self.api_data = self.get_api_data()
@@ -162,20 +169,141 @@ class MainWindow(QtWidgets.QMainWindow):
         self.country_list.itemClicked.connect(self.get_server_list)
         self.server_type_select.currentTextChanged.connect(self.get_server_list)
         self.connect_btn.clicked.connect(self.connect)
-
+        self.center_on_screen()
         self.retranslateUi()
         QtCore.QMetaObject.connectSlotsByName(self)
         QtWidgets.QApplication.processEvents()
 
+        self.show()
+
+    def login_ui(self):
+        self.resize(558, 468)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.sizePolicy().hasHeightForWidth())
+        self.setSizePolicy(sizePolicy)
+        self.setWindowTitle("")
+        self.centralwidget = QtWidgets.QWidget(self)
+        self.centralwidget.setObjectName("centralwidget")
+        self.gridLayout = QtWidgets.QGridLayout(self.centralwidget)
+        self.gridLayout.setObjectName("gridLayout")
+        self.verticalLayout_2 = QtWidgets.QVBoxLayout()
+        self.verticalLayout_2.setObjectName("verticalLayout_2")
+        self.nord_image = QtWidgets.QLabel(self.centralwidget)
+        self.nord_image.setObjectName("nord_image")
+        self.verticalLayout_2.addWidget(self.nord_image)
+        self.horizontalLayout_3 = QtWidgets.QHBoxLayout()
+        self.horizontalLayout_3.setObjectName("horizontalLayout_3")
+        self.verticalLayout = QtWidgets.QVBoxLayout()
+        self.verticalLayout.setSizeConstraint(QtWidgets.QLayout.SetDefaultConstraint)
+        self.verticalLayout.setContentsMargins(-1, 0, -1, -1)
+        self.verticalLayout.setSpacing(6)
+        self.verticalLayout.setObjectName("verticalLayout")
+        self.horizontalLayout = QtWidgets.QHBoxLayout()
+        self.horizontalLayout.setObjectName("horizontalLayout")
+        self.user_label = QtWidgets.QLabel(self.centralwidget)
+        self.user_label.setObjectName("user_label")
+        self.horizontalLayout.addWidget(self.user_label)
+        self.user_input = QtWidgets.QLineEdit(self.centralwidget)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.MinimumExpanding)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.user_input.sizePolicy().hasHeightForWidth())
+        self.user_input.setSizePolicy(sizePolicy)
+        self.user_input.setMaximumSize(QtCore.QSize(200, 30))
+        self.user_input.setBaseSize(QtCore.QSize(150, 50))
+        self.user_input.setAlignment(QtCore.Qt.AlignCenter)
+        self.user_input.setObjectName("user_input")
+        self.horizontalLayout.addWidget(self.user_input)
+        self.verticalLayout.addLayout(self.horizontalLayout)
+        self.horizontalLayout_2 = QtWidgets.QHBoxLayout()
+        self.horizontalLayout_2.setObjectName("horizontalLayout_2")
+        self.password_label = QtWidgets.QLabel(self.centralwidget)
+        self.password_label.setObjectName("password_label")
+        self.horizontalLayout_2.addWidget(self.password_label)
+        self.password_input = QtWidgets.QLineEdit(self.centralwidget)
+        self.password_input.setEchoMode(QtWidgets.QLineEdit.Password)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.MinimumExpanding)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.password_input.sizePolicy().hasHeightForWidth())
+        self.password_input.setSizePolicy(sizePolicy)
+        self.password_input.setMaximumSize(QtCore.QSize(200, 30))
+        self.password_input.setAlignment(QtCore.Qt.AlignCenter)
+        self.password_input.setObjectName("password_input")
+        self.horizontalLayout_2.addWidget(self.password_input)
+        self.verticalLayout.addLayout(self.horizontalLayout_2)
+        self.horizontalLayout_3.addLayout(self.verticalLayout)
+        spacerItem = QtWidgets.QSpacerItem(80, 20, QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Minimum)
+        self.horizontalLayout_3.addItem(spacerItem)
+        self.login_btn = QtWidgets.QPushButton(self.centralwidget)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.login_btn.sizePolicy().hasHeightForWidth())
+        self.login_btn.setSizePolicy(sizePolicy)
+        self.login_btn.setObjectName("login_btn")
+        self.horizontalLayout_3.addWidget(self.login_btn)
+        self.verticalLayout_2.addLayout(self.horizontalLayout_3)
+        self.gridLayout.addLayout(self.verticalLayout_2, 0, 0, 1, 1)
+        self.setCentralWidget(self.centralwidget)
+        self.statusbar = QtWidgets.QStatusBar(self)
+        self.statusbar.setObjectName("statusbar")
+        self.setStatusBar(self.statusbar)
+
+        self.retranslate_login_ui()
+        QtCore.QMetaObject.connectSlotsByName(self)
+
+        self.password_input.returnPressed.connect(self.login_btn.click)
+        self.login_btn.clicked.connect(self.verify_credentials)
+
+
+    def verify_credentials(self):
+        try:
+            resp = requests.get('https://api.nordvpn.com/token/token/' + self.user_input.text(), timeout=5)
+            if resp.status_code == requests.codes.ok:
+                token_json = json.loads(resp.text)
+                token = token_json['token']
+                salt = token_json['salt']
+                key = token_json['key']
+
+                password_hash = hashlib.sha512(salt.encode() + self.password_input.text().encode())
+                final_hash = hashlib.sha512(password_hash.hexdigest().encode() + key.encode())
+
+                try:
+                    resp = requests.get('https://api.nordvpn.com/token/verify/' + token + '/' + final_hash.hexdigest(), timeout=5)
+                    if resp.status_code == requests.codes.ok:
+                        self.statusbar.showMessage('Login Success', 2000)
+                        time.sleep(0.5)
+                        self.hide()
+                        self.main_ui()
+                    else:
+                        self.statusbar.showMessage('Invalid Credentials', 2000)
+                        self.user_input.clear()
+                        self.password_input.clear()
+                        self.user_input.setFocus()
+                except Exception as ex:
+                    self.statusbar.showMessage('Invalid Credentials', 2000)
+                    self.user_input.clear()
+                    self.password_input.clear()
+                    self.user_input.setFocus()
+
+
+            else:
+                self.statusbar.showMessage("API Error: could not fetch token", 2000)
+        except Exception as ex:
+            self.statusbar.showMessage("API Error: could not fetch token", 2000)
+
     def get_api_data(self):
         try:
             resp = requests.get(api, timeout=5)
-            if resp.status_code is requests.codes.ok:
+            if resp.status_code == requests.codes.ok:
                 return resp.json()
             else:
-                print("Get API failed")
+                self.statusbar.showMessage("Get API failed", 2000)
         except Exception as ex:
-            print("Get API failed")
+            self.statusbar.showMessage("Get API failed", 2000)
 
     def get_country_list(self, api_data):
         server_country_list = []
@@ -230,7 +358,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.server_list.addItems(sorted(server_name_list))
         QtWidgets.QApplication.processEvents()
         self.retranslateUi()
-        print(sorted(self.domain_list))
         self.domain_list = sorted(self.domain_list)
 
     def connect(self):
@@ -238,14 +365,18 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.connection_type_select.currentText() == 'UDP':
             filename = self.domain_list[self.server_list.currentRow()] + '.udp.ovpn'
             ovpn_file = requests.get('https://downloads.nordcdn.com/configs/files/ovpn_udp/servers/' + filename, stream=True)
-            with open(os.path.join(self.config_path, filename), 'wb') as out_file:
-                shutil.copyfileobj(ovpn_file.raw, out_file)
+            if ovpn_file.status_code == requests.codes.ok:
+                with open(os.path.join(self.config_path, filename), 'wb') as out_file:
+                    shutil.copyfileobj(ovpn_file.raw, out_file)
+            else: self.statusbar.showMessage('Error fetching configuration files', 2000)
         elif self.connection_type_select.currentText() == 'TCP':
             filename = self.domain_list[self.server_list.currentRow()] + '.tcp.ovpn'
             ovpn_file = requests.get('https://downloads.nordcdn.com/configs/files/ovpn_tcp/servers/' + filename, stream=True)
-            with open(os.path.join(self.config_path, filename), 'wb') as out_file:
-                shutil.copyfileobj(ovpn_file.raw, out_file)
-
+            if ovpn_file.status_code == requests.codes.ok:
+                with open(os.path.join(self.config_path, filename), 'wb') as out_file:
+                    shutil.copyfileobj(ovpn_file.raw, out_file)
+            else: self.statusbar.showMessage('Error fetching configuration files', 2000)
+        self.server_list.setFocus()
 
     def center_on_screen(self):
         resolution = QtWidgets.QDesktopWidget().screenGeometry()
@@ -266,6 +397,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.connection_type_select.setStatusTip(_translate("MainWindow", "Select connection type"))
         self.connect_btn.setText(_translate("MainWindow", "Connect"))
         self.label.setText(_translate("MainWindow", "Server List"))
+
+    def retranslate_login_ui(self):
+        _translate = QtCore.QCoreApplication.translate
+        self.nord_image.setText(_translate("MainWindow", "<html><head/><body><p align=\"center\"><img src=\"nordvpnicon.png\"/></p><p align=\"center\"><br/></p></body></html>"))
+        self.user_label.setText(
+            _translate("MainWindow", "<html><head/><body><p align=\"right\">Email:     </p></body></html>"))
+        self.password_label.setText(
+            _translate("MainWindow", "<html><head/><body><p align=\"right\">Password:     </p></body></html>"))
+        self.login_btn.setText(_translate("MainWindow", "Login"))
 
 
 if __name__ == '__main__':
