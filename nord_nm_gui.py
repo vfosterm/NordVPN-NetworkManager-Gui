@@ -7,11 +7,17 @@ import shutil
 import json
 import hashlib
 import time
+import tempfile
+import subprocess
+from network_manager import ConnectionConfig, get_current_user
+from collections import namedtuple
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 connection_type_options = ['UDP', 'TCP']
 server_type_options = ['P2P', 'Standard', 'Double VPN', 'TOR over VPN', 'Dedicated IP', 'Anti-DDoS', 'Obfuscated Server']
 api = "https://api.nordvpn.com/server"
+tmp = os.path.join(tempfile.gettempdir(), '.nordnm_gui_conf')
+ServerInfo = namedtuple('ServerInfo', 'name, country, domain, type, load')
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -19,8 +25,13 @@ class MainWindow(QtWidgets.QMainWindow):
         super(MainWindow, self).__init__()
         self.setObjectName("MainWindowObject")
         self.setWindowIcon(QtGui.QIcon('nordvpnicon.png'))
+        self.config_path = os.path.join(os.path.abspath(os.getcwd()), '.configs')
+        self.api_data = self.get_api_data()
+        self.username = None
+        self.password = None
+        self.domain_list = []
+        self.server_info_list = []
         self.login_ui()
-        self.center_on_screen()
         self.show()
 
     def main_ui(self):
@@ -156,24 +167,18 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusbar.setObjectName("statusbar")
         self.setStatusBar(self.statusbar)
 
-
-        self.config_path = os.path.join(os.path.abspath(os.getcwd()), '.configs')
-        self.api_data = self.get_api_data()
-        self.domain_list = []
         server_country_list = self.get_country_list(self.api_data)
         self.connection_type_select.addItems(connection_type_options)
         self.server_type_select.addItems(server_type_options)
         self.country_list.addItems(server_country_list)
-        self.country_list.setCurrentRow(0)
-        item = self.country_list.currentItem()
         self.country_list.itemClicked.connect(self.get_server_list)
         self.server_type_select.currentTextChanged.connect(self.get_server_list)
         self.connect_btn.clicked.connect(self.connect)
+
         self.center_on_screen()
         self.retranslateUi()
         QtCore.QMetaObject.connectSlotsByName(self)
         QtWidgets.QApplication.processEvents()
-
         self.show()
 
     def login_ui(self):
@@ -251,13 +256,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusbar = QtWidgets.QStatusBar(self)
         self.statusbar.setObjectName("statusbar")
         self.setStatusBar(self.statusbar)
-
+        self.center_on_screen()
         self.retranslate_login_ui()
         QtCore.QMetaObject.connectSlotsByName(self)
 
         self.password_input.returnPressed.connect(self.login_btn.click)
         self.login_btn.clicked.connect(self.verify_credentials)
-
 
     def verify_credentials(self):
         try:
@@ -275,6 +279,8 @@ class MainWindow(QtWidgets.QMainWindow):
                     resp = requests.get('https://api.nordvpn.com/token/verify/' + token + '/' + final_hash.hexdigest(), timeout=5)
                     if resp.status_code == requests.codes.ok:
                         self.statusbar.showMessage('Login Success', 2000)
+                        self.username = self.user_input.text()
+                        self.password = self.password_input.text()
                         time.sleep(0.5)
                         self.hide()
                         self.main_ui()
@@ -288,8 +294,6 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.user_input.clear()
                     self.password_input.clear()
                     self.user_input.setFocus()
-
-
             else:
                 self.statusbar.showMessage("API Error: could not fetch token", 2000)
         except Exception as ex:
@@ -314,10 +318,12 @@ class MainWindow(QtWidgets.QMainWindow):
         return sorted(server_country_list)
 
     def get_server_list(self):
-        server_name_list = []
+
         filtered = self.country_list.currentItem().text(), self.server_type_select.currentText(), self.connection_type_select.currentText()
+        server_name_list = []
         self.server_list.clear()
         self.domain_list.clear()
+        self.server_info_list.clear()
         for server in self.api_data:
             name       = server['name']
             load       = server['load']
@@ -355,28 +361,74 @@ class MainWindow(QtWidgets.QMainWindow):
             if (name not in server_name_list) and (country == filtered[0]) and (filtered[1] in server_category_list):
                 server_name_list.append(name + '\n' + 'Load: ' + str(load) + '%\n' + "Domain: " + domain + '\n' + "Categories: " + server_categories)
                 self.domain_list.append(domain)
-        self.server_list.addItems(sorted(server_name_list))
+                server = ServerInfo(name=name, country=country, domain=domain, type=server_category_list, load=load)
+                self.server_info_list.append(server)
+
+        if server_name_list:
+            server_name_list, self.domain_list, self.server_info_list = (list(x) for x in zip(*sorted(zip(server_name_list, self.domain_list, self.server_info_list), key=lambda x: x[2].load)))
+            self.server_list.addItems(server_name_list)
+        else:
+            self.server_list.addItem("No Servers Found")
         QtWidgets.QApplication.processEvents()
         self.retranslateUi()
-        self.domain_list = sorted(self.domain_list)
 
-    def connect(self):
+    def get_ovpn(self):
         # https://downloads.nordcdn.com/configs/files/ovpn_udp/servers/sg173.nordvpn.com.udp.ovpn
+        self.ovpn_path = None
         if self.connection_type_select.currentText() == 'UDP':
             filename = self.domain_list[self.server_list.currentRow()] + '.udp.ovpn'
             ovpn_file = requests.get('https://downloads.nordcdn.com/configs/files/ovpn_udp/servers/' + filename, stream=True)
             if ovpn_file.status_code == requests.codes.ok:
-                with open(os.path.join(self.config_path, filename), 'wb') as out_file:
+                self.ovpn_path = os.path.join(self.config_path, filename)
+                with open(self.ovpn_path, 'wb') as out_file:
                     shutil.copyfileobj(ovpn_file.raw, out_file)
             else: self.statusbar.showMessage('Error fetching configuration files', 2000)
         elif self.connection_type_select.currentText() == 'TCP':
             filename = self.domain_list[self.server_list.currentRow()] + '.tcp.ovpn'
             ovpn_file = requests.get('https://downloads.nordcdn.com/configs/files/ovpn_tcp/servers/' + filename, stream=True)
             if ovpn_file.status_code == requests.codes.ok:
-                with open(os.path.join(self.config_path, filename), 'wb') as out_file:
+                self.ovpn_path = os.path.join(self.config_path, filename)
+                with open(self.ovpn_path , 'wb') as out_file:
                     shutil.copyfileobj(ovpn_file.raw, out_file)
             else: self.statusbar.showMessage('Error fetching configuration files', 2000)
         self.server_list.setFocus()
+
+    def generate_connection_name(self):
+        server = self.server_info_list[self.server_list.currentRow()]
+        category_name = ''
+        for i, category in enumerate(server.type):
+            if i > 0:
+                category_name += ' | ' + category
+            else:
+                category_name = category
+
+        connection_name = server.name + ' [' + category_name + '] [' + self.connection_type_select.currentText() + ']'
+        return connection_name
+
+    def import_connection(self):
+        connection_name = self.generate_connection_name()
+        ovpn_file = connection_name + '.ovpn'
+
+        path = os.path.join(self.config_path, ovpn_file)
+        shutil.copy(self.ovpn_path, os.path.join(path))
+        output = subprocess.run(['nmcli', 'connection', 'import', 'type', 'openvpn', 'file', path])
+        output.check_returncode()
+
+        config = ConnectionConfig(connection_name)
+        if config.path:
+            if self.username and self.password:
+                config.set_credentials(self.username, self.password)
+            config.disable_ipv6()
+            config.set_dns_nameservers(dns_list=None)
+            user = get_current_user()
+            config.set_user(user)
+            config.save()
+        else:
+            print("error")
+
+    def connect(self):
+        self.get_ovpn()
+        self.import_connection()
 
     def center_on_screen(self):
         resolution = QtWidgets.QDesktopWidget().screenGeometry()
