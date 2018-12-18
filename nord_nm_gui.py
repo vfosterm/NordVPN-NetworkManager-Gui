@@ -57,6 +57,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.title_label.setSizePolicy(sizePolicy)
         font = QtGui.QFont()
         font.setPointSize(6)
+        font.setStyleHint(QtGui.QFont.Monospace)
         self.title_label.setFont(font)
         self.title_label.setTextFormat(QtCore.Qt.RichText)
         self.title_label.setObjectName("title_label")
