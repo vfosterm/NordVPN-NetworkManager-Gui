@@ -29,6 +29,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.username = None
         self.password = None
         self.connection_name = None
+        self.is_connected = False
         self.domain_list = []
         self.server_info_list = []
         self.login_ui()
@@ -131,6 +132,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.connect_btn.setObjectName("connect_btn")
         self.horizontalLayout.addWidget(self.connect_btn)
         self.gridLayout.addLayout(self.horizontalLayout, 2, 0, 1, 2)
+
+        self.disconnect_btn = QtWidgets.QPushButton(self.centralwidget)
+        self.disconnect_btn.hide()
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.disconnect_btn.sizePolicy().hasHeightForWidth())
+        self.disconnect_btn.setSizePolicy(sizePolicy)
+        self.disconnect_btn.setLayoutDirection(QtCore.Qt.LeftToRight)
+        self.disconnect_btn.setObjectName("disconnect_btn")
+        self.horizontalLayout.addWidget(self.disconnect_btn)
+        self.gridLayout.addLayout(self.horizontalLayout, 2, 0, 1, 2)
+
         self.verticalLayout_4 = QtWidgets.QVBoxLayout()
         self.verticalLayout_4.setObjectName("verticalLayout_4")
         self.label = QtWidgets.QLabel(self.centralwidget)
@@ -174,7 +188,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.country_list.addItems(server_country_list)
         self.country_list.itemClicked.connect(self.get_server_list)
         self.server_type_select.currentTextChanged.connect(self.get_server_list)
+
         self.connect_btn.clicked.connect(self.connect)
+        self.disconnect_btn.clicked.connect(self.disconnect_vpn)
 
         self.center_on_screen()
         self.retranslateUi()
@@ -282,6 +298,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         self.statusbar.showMessage('Login Success', 2000)
                         self.username = self.user_input.text()
                         self.password = self.password_input.text()
+                        self.repaint()
                         time.sleep(0.5)
                         self.hide()
                         self.main_ui()
@@ -408,28 +425,38 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def import_ovpn(self):
         try:
+            self.statusbar.showMessage("Importing Connection...")
+            self.repaint()
             self.connection_name = self.generate_connection_name()
             ovpn_file = self.connection_name + '.ovpn'
             path = os.path.join(self.config_path, ovpn_file)
             shutil.copy(self.ovpn_path, os.path.join(path))
-            output = subprocess.run(['nmcli', 'connection', 'import', '--temporary', 'type', 'openvpn', 'file', path])
+            os.remove(self.ovpn_path)
+            output = subprocess.run(['nmcli', 'connection', 'import', 'type', 'openvpn', 'file', path])
             output.check_returncode()
+            os.remove(path)
+
         except subprocess.CalledProcessError:
             self.statusbar.showMessage("ERROR: Importing VPN configuration")
 
     def add_secrets(self):
         try:
+            self.statusbar.showMessage("Adding Secrets...", 1000)
+            self.repaint()
             password_flag = subprocess.run(['nmcli', 'connection', 'modify', self.connection_name, '+vpn.data', 'password-flags=0'])
             password_flag.check_returncode()
             secrets = subprocess.run(['nmcli', 'connection', 'modify', self.connection_name, '+vpn.secrets', 'password='+self.password])
             secrets.check_returncode()
             user_secret = subprocess.run(['nmcli', 'connection', 'modify', self.connection_name, '+vpn.data', 'username='+self.username])
             user_secret.check_returncode()
+
         except subprocess.CalledProcessError:
             self.statusbar.showMessage("ERROR: Secrets could not be added", 2000)
 
     def enable_connection(self):
         try:
+            self.statusbar.showMessage("Connecting...", 1000)
+            self.repaint()
             connection = subprocess.run(['nmcli', 'connection', 'up', self.connection_name])
             connection.check_returncode()
         except subprocess.CalledProcessError:
@@ -437,16 +464,42 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def disable_connection(self):
         try:
+            self.statusbar.showMessage("Disconnecting...", 1000)
+            self.repaint()
             connection = subprocess.run(['nmcli', 'connection', 'down', self.connection_name])
             connection.check_returncode()
         except subprocess.CalledProcessError:
             self.statusbar.showMessage("ERROR: Disconnection Failed", 2000)
+
+    def remove_connection(self):
+        try:
+            connection = subprocess.run(['nmcli', 'connection', 'delete', self.connection_name])
+            connection.check_returncode()
+        except subprocess.CalledProcessError:
+            self.statusbar.showMessage("ERROR: Failed to remove Connection", 2000)
 
     def connect(self):
         self.get_ovpn()
         self.import_ovpn()
         self.add_secrets()
         self.enable_connection()
+        self.statusbar.clearMessage()
+        self.repaint()
+        # TODO: only if vpn is active
+        self.connect_btn.hide()
+        self.disconnect_btn.show()
+        self.retranslateUi()
+
+    def disconnect_vpn(self):
+        self.disable_connection()
+        self.remove_connection()
+        self.statusbar.clearMessage()
+        self.repaint()
+
+        self.disconnect_btn.hide()
+        self.connect_btn.show()
+        self.retranslateUi()
+
 
     def center_on_screen(self):
         resolution = QtWidgets.QDesktopWidget().screenGeometry()
@@ -466,6 +519,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.server_type_select.setStatusTip(_translate("MainWindow", "Select Server Type"))
         self.connection_type_select.setStatusTip(_translate("MainWindow", "Select connection type"))
         self.connect_btn.setText(_translate("MainWindow", "Connect"))
+        self.disconnect_btn.setText(_translate("MainWindow", "Disconnect"))
         self.label.setText(_translate("MainWindow", "Server List"))
 
     def retranslate_login_ui(self):
