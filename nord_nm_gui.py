@@ -9,7 +9,6 @@ import hashlib
 import time
 import tempfile
 import subprocess
-from network_manager import ConnectionConfig, get_current_user
 from collections import namedtuple
 from PyQt5 import QtCore, QtGui, QtWidgets
 
@@ -29,6 +28,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.api_data = self.get_api_data()
         self.username = None
         self.password = None
+        self.connection_name = None
         self.domain_list = []
         self.server_info_list = []
         self.login_ui()
@@ -406,30 +406,47 @@ class MainWindow(QtWidgets.QMainWindow):
         connection_name = server.name + ' [' + category_name + '] [' + self.connection_type_select.currentText() + ']'
         return connection_name
 
-    def import_connection(self):
-        connection_name = self.generate_connection_name()
-        ovpn_file = connection_name + '.ovpn'
+    def import_ovpn(self):
+        try:
+            self.connection_name = self.generate_connection_name()
+            ovpn_file = self.connection_name + '.ovpn'
+            path = os.path.join(self.config_path, ovpn_file)
+            shutil.copy(self.ovpn_path, os.path.join(path))
+            output = subprocess.run(['nmcli', 'connection', 'import', '--temporary', 'type', 'openvpn', 'file', path])
+            output.check_returncode()
+        except subprocess.CalledProcessError:
+            self.statusbar.showMessage("ERROR: Importing VPN configuration")
 
-        path = os.path.join(self.config_path, ovpn_file)
-        shutil.copy(self.ovpn_path, os.path.join(path))
-        output = subprocess.run(['nmcli', 'connection', 'import', 'type', 'openvpn', 'file', path])
-        output.check_returncode()
+    def add_secrets(self):
+        try:
+            password_flag = subprocess.run(['nmcli', 'connection', 'modify', self.connection_name, '+vpn.data', 'password-flags=0'])
+            password_flag.check_returncode()
+            secrets = subprocess.run(['nmcli', 'connection', 'modify', self.connection_name, '+vpn.secrets', 'password='+self.password])
+            secrets.check_returncode()
+            user_secret = subprocess.run(['nmcli', 'connection', 'modify', self.connection_name, '+vpn.data', 'username='+self.username])
+            user_secret.check_returncode()
+        except subprocess.CalledProcessError:
+            self.statusbar.showMessage("ERROR: Secrets could not be added", 2000)
 
-        config = ConnectionConfig(connection_name)
-        if config.path:
-            if self.username and self.password:
-                config.set_credentials(self.username, self.password)
-            config.disable_ipv6()
-            config.set_dns_nameservers(dns_list=None)
-            user = get_current_user()
-            config.set_user(user)
-            config.save()
-        else:
-            print("error")
+    def enable_connection(self):
+        try:
+            connection = subprocess.run(['nmcli', 'connection', 'up', self.connection_name])
+            connection.check_returncode()
+        except subprocess.CalledProcessError:
+            self.statusbar.showMessage("ERROR: Connection Failed", 2000)
+
+    def disable_connection(self):
+        try:
+            connection = subprocess.run(['nmcli', 'connection', 'down', self.connection_name])
+            connection.check_returncode()
+        except subprocess.CalledProcessError:
+            self.statusbar.showMessage("ERROR: Disconnection Failed", 2000)
 
     def connect(self):
         self.get_ovpn()
-        self.import_connection()
+        self.import_ovpn()
+        self.add_secrets()
+        self.enable_connection()
 
     def center_on_screen(self):
         resolution = QtWidgets.QDesktopWidget().screenGeometry()
