@@ -7,7 +7,6 @@ import shutil
 import json
 import hashlib
 import time
-import tempfile
 import subprocess
 from collections import namedtuple
 from PyQt5 import QtCore, QtGui, QtWidgets
@@ -15,8 +14,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 connection_type_options = ['UDP', 'TCP']
 server_type_options = ['P2P', 'Standard', 'Double VPN', 'TOR over VPN', 'Dedicated IP', 'Anti-DDoS', 'Obfuscated Server']
 api = "https://api.nordvpn.com/server"
-tmp = os.path.join(tempfile.gettempdir(), '.nordnm_gui_conf')
-ServerInfo = namedtuple('ServerInfo', 'name, country, domain, type, load')
+ServerInfo = namedtuple('ServerInfo', 'name, country, domain, type, load, categories')
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -192,6 +190,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.connect_btn.clicked.connect(self.connect)
         self.disconnect_btn.clicked.connect(self.disconnect_vpn)
 
+        self.get_active_vpn()
         self.center_on_screen()
         self.retranslateUi()
         QtCore.QMetaObject.connectSlotsByName(self)
@@ -205,7 +204,7 @@ class MainWindow(QtWidgets.QMainWindow):
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.sizePolicy().hasHeightForWidth())
         self.setSizePolicy(sizePolicy)
-        self.setWindowTitle("")
+        self.setWindowTitle(" ")
         self.centralwidget = QtWidgets.QWidget(self)
         self.centralwidget.setObjectName("centralwidget")
         self.gridLayout = QtWidgets.QGridLayout(self.centralwidget)
@@ -379,7 +378,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if (name not in server_name_list) and (country == filtered[0]) and (filtered[1] in server_category_list):
                 server_name_list.append(name + '\n' + 'Load: ' + str(load) + '%\n' + "Domain: " + domain + '\n' + "Categories: " + server_categories)
                 self.domain_list.append(domain)
-                server = ServerInfo(name=name, country=country, domain=domain, type=server_category_list, load=load)
+                server = ServerInfo(name=name, country=country, domain=domain, type=server_category_list, load=load, categories=server_categories)
                 self.server_info_list.append(server)
 
         if server_name_list:
@@ -393,6 +392,16 @@ class MainWindow(QtWidgets.QMainWindow):
     def get_ovpn(self):
         # https://downloads.nordcdn.com/configs/files/ovpn_udp/servers/sg173.nordvpn.com.udp.ovpn
         self.ovpn_path = None
+        try:
+            if not os.path.isdir(self.config_path):
+                os.mkdir(self.config_path)
+                print("config path created")
+            else:
+                print("config path exists")
+        except PermissionError:
+            self.statusbar.showMessage("Insufficient Permissions to create config folder", 2000)
+
+
         if self.connection_type_select.currentText() == 'UDP':
             filename = self.domain_list[self.server_list.currentRow()] + '.udp.ovpn'
             ovpn_file = requests.get('https://downloads.nordcdn.com/configs/files/ovpn_udp/servers/' + filename, stream=True)
@@ -422,6 +431,50 @@ class MainWindow(QtWidgets.QMainWindow):
 
         connection_name = server.name + ' [' + category_name + '] [' + self.connection_type_select.currentText() + ']'
         return connection_name
+
+    def get_active_vpn(self):
+        try:
+            output = subprocess.run(['nmcli', '--mode', 'tabular', '--terse', '--fields', 'TYPE,NAME', 'connection', 'show', '--active'],
+                                   stdout=subprocess.PIPE)
+            output.check_returncode()
+            lines = output.stdout.decode('utf-8').split('\n')
+
+            for line in lines:
+                if line:
+                    elements = line.strip().split(':')
+
+                    if elements[0] == 'vpn':
+                        connection_info = elements[1].split()
+                        connection_name = elements[1]
+                        country = connection_info[0]
+                        server_name = connection_info[0] + ' ' + connection_info[1]
+                        if self.server_info_list: #vpn connected successfully
+                            for server in self.server_info_list:
+                                if server_name == server.name:
+                                    return True
+                        elif not self.server_info_list: #existing Nordvpn connection found
+                            self.connect_btn.hide()
+                            self.disconnect_btn.show()
+                            self.statusbar.showMessage("Fetching Active Server...", 2000)
+                            self.repaint()
+                            item = self.country_list.findItems(country, QtCore.Qt.MatchExactly)
+                            self.country_list.setCurrentItem(item[0])
+                            self.get_server_list()
+                            for server in self.server_info_list:
+                                if server_name == server.name:
+                                    server_list_item = self.server_list.findItems(server_name + '\n' + 'Load: ' + str(server.load) + '%\n' + "Domain: " + server.domain + '\n' + "Categories: " + server.categories, QtCore.Qt.MatchExactly)
+                                    self.server_list.setCurrentItem(server_list_item[0])
+                                    self.server_list.setFocus()
+                                    self.connection_name = connection_name
+                                    return False
+                        else:
+                            self.statusbar.showMessage("Warning! Unknown VPN connection found", 2000)
+                            return False
+        except subprocess.CalledProcessError:
+            self.statusbar.showMessage("ERROR: Network Manager query error", 2000)
+
+
+
 
     def import_ovpn(self):
         try:
@@ -485,10 +538,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.enable_connection()
         self.statusbar.clearMessage()
         self.repaint()
-        # TODO: only if vpn is active
-        self.connect_btn.hide()
-        self.disconnect_btn.show()
-        self.retranslateUi()
+        if self.get_active_vpn():
+            self.connect_btn.hide()
+            self.disconnect_btn.show()
+            self.retranslateUi()
 
     def disconnect_vpn(self):
         self.disable_connection()
