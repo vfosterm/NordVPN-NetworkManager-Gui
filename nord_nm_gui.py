@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-
+# NordVPN-NetworkManager-GUI a graphical frontend for both NordVPN and the Network Manager
+# Copyright (C) 2018 Vincent Foster-Mueller
 import sys
 import os
 import requests
