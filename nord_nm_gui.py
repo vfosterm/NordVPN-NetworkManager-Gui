@@ -402,7 +402,6 @@ class MainWindow(QtWidgets.QMainWindow):
         except PermissionError:
             self.statusbar.showMessage("Insufficient Permissions to create config folder", 2000)
 
-
         if self.connection_type_select.currentText() == 'UDP':
             filename = self.domain_list[self.server_list.currentRow()] + '.udp.ovpn'
             ovpn_file = requests.get('https://downloads.nordcdn.com/configs/files/ovpn_udp/servers/' + filename, stream=True)
@@ -532,6 +531,7 @@ class MainWindow(QtWidgets.QMainWindow):
         except subprocess.CalledProcessError:
             self.statusbar.showMessage("ERROR: Failed to remove Connection", 2000)
 
+#doesn't work for double vpn
     def connect(self):
         self.get_ovpn()
         self.import_ovpn()
