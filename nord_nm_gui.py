@@ -452,6 +452,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         connection_info = elements[1].split()
                         connection_name = elements[1]
                         country = connection_info[0]
+                        print(connection_info)
                         if len(connection_info) < 6:  # Normal servers
                             server_name = connection_info[0] + ' ' + connection_info[1]
                         elif len(connection_info) > 6: #Double VPN server
@@ -467,6 +468,10 @@ class MainWindow(QtWidgets.QMainWindow):
                             self.repaint()
                             item = self.country_list.findItems(country, QtCore.Qt.MatchExactly)
                             self.country_list.setCurrentItem(item[0])
+                            if "[Double" in connection_info:
+                                self.server_type_select.setCurrentIndex(2)
+                            if "[TCP]" in connection_info:
+                                self.connection_type_select.setCurrentIndex(1)
                             self.get_server_list()
                             for server in self.server_info_list:
                                 if server_name == server.name:
