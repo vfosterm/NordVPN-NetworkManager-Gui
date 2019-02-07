@@ -390,6 +390,10 @@ class MainWindow(QtWidgets.QMainWindow):
         QtWidgets.QApplication.processEvents()
         self.retranslateUi()
 
+    def check_connection_validity(self):
+        if self.server_type_select.currentText() == 'Double VPN': #perhaps add pop up to give user the choice
+            self.connection_type_select.setCurrentIndex(1) #set to TCP
+
     def get_ovpn(self):
         # https://downloads.nordcdn.com/configs/files/ovpn_udp/servers/sg173.nordvpn.com.udp.ovpn
         self.ovpn_path = None
@@ -436,6 +440,7 @@ class MainWindow(QtWidgets.QMainWindow):
         try:
             output = subprocess.run(['nmcli', '--mode', 'tabular', '--terse', '--fields', 'TYPE,NAME', 'connection', 'show', '--active'],
                                    stdout=subprocess.PIPE)
+            print(output)
             output.check_returncode()
             lines = output.stdout.decode('utf-8').split('\n')
 
@@ -447,7 +452,10 @@ class MainWindow(QtWidgets.QMainWindow):
                         connection_info = elements[1].split()
                         connection_name = elements[1]
                         country = connection_info[0]
-                        server_name = connection_info[0] + ' ' + connection_info[1]
+                        if len(connection_info) < 6:  # Normal servers
+                            server_name = connection_info[0] + ' ' + connection_info[1]
+                        elif len(connection_info) > 6: #Double VPN server
+                            server_name = connection_info[0] + ' ' + '- ' + connection_info[2] + ' ' + connection_info[3]
                         if self.server_info_list: #vpn connected successfully
                             for server in self.server_info_list:
                                 if server_name == server.name:
@@ -472,9 +480,6 @@ class MainWindow(QtWidgets.QMainWindow):
                             return False
         except subprocess.CalledProcessError:
             self.statusbar.showMessage("ERROR: Network Manager query error", 2000)
-
-
-
 
     def import_ovpn(self):
         try:
@@ -531,8 +536,8 @@ class MainWindow(QtWidgets.QMainWindow):
         except subprocess.CalledProcessError:
             self.statusbar.showMessage("ERROR: Failed to remove Connection", 2000)
 
-#doesn't work for double vpn
     def connect(self):
+        self.check_connection_validity()
         self.get_ovpn()
         self.import_ovpn()
         self.add_secrets()

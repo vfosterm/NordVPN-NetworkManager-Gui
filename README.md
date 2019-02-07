@@ -18,5 +18,6 @@ This project was inspired by [NordVPN-NetworkManager](https://github.com/Chadsr/
 * Auto connect not implemented
 * Randomize MAC not implemented
 * Kill Switch not implemented
-* No support for the following servers [Obfuscated, Double VPN, TOR over VPN, Anti-DDoS]
+* No support for the following servers [Obfuscated, TOR over VPN, Anti-DDoS]
+* Program does not resume correctly on Double VPN server
 * Dedicated IP servers not yet tested as I don't have access, should work however
