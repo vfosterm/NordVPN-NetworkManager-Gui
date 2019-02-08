@@ -370,8 +370,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 elif category['name'] == 'Double VPN':
                     server_categories += category['name'] + ' '
                     server_category_list.append('Double VPN')
-
-                elif category['name'] == 'Onion over VPN':
+                elif category['name'] == 'Onion Over VPN':
                     server_categories += category['name'] + ' '
                     server_category_list.append('TOR over VPN')
                 else:
@@ -453,10 +452,14 @@ class MainWindow(QtWidgets.QMainWindow):
                         connection_name = elements[1]
                         country = connection_info[0]
                         print(connection_info)
-                        if len(connection_info) < 6:  # Normal servers
+                        if '[Standard' in connection_info:  # Normal servers
                             server_name = connection_info[0] + ' ' + connection_info[1]
-                        elif len(connection_info) > 6: #Double VPN server
+                        elif '[Double' in connection_info: #Double VPN server
                             server_name = connection_info[0] + ' ' + '- ' + connection_info[2] + ' ' + connection_info[3]
+                        elif '[TOR' in connection_info:
+                            server_name = connection_info[0] + ' ' + connection_info[1] + ' ' + connection_info[2]
+                        elif '[Dedicated' in connection_info:
+                            server_name = connection_info[0] + ' ' + connection_info[1]
                         if self.server_info_list: #vpn connected successfully
                             for server in self.server_info_list:
                                 if server_name == server.name:
@@ -470,6 +473,10 @@ class MainWindow(QtWidgets.QMainWindow):
                             self.country_list.setCurrentItem(item[0])
                             if "[Double" in connection_info:
                                 self.server_type_select.setCurrentIndex(2)
+                            if "[TOR" in connection_info:
+                                self.server_type_select.setCurrentIndex(3)
+                            if "[Dedicated" in connection_info:
+                                self.server_type_select.setCurrentIndex(4)
                             if "[TCP]" in connection_info:
                                 self.connection_type_select.setCurrentIndex(1)
                             self.get_server_list()
