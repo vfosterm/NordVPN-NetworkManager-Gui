@@ -454,17 +454,17 @@ class MainWindow(QtWidgets.QMainWindow):
                         print(connection_info)
                         if '[Standard' in connection_info:  # Normal servers
                             server_name = connection_info[0] + ' ' + connection_info[1]
-                        elif '[Double' in connection_info: #Double VPN server
+                        elif '[Double' in connection_info: # Double VPN server
                             server_name = connection_info[0] + ' ' + '- ' + connection_info[2] + ' ' + connection_info[3]
-                        elif '[TOR' in connection_info:
+                        elif '[TOR' in connection_info: # Onion Over VPN
                             server_name = connection_info[0] + ' ' + connection_info[1] + ' ' + connection_info[2]
-                        elif '[Dedicated' in connection_info:
+                        elif '[Dedicated' in connection_info: # Dedicated IP
                             server_name = connection_info[0] + ' ' + connection_info[1]
-                        if self.server_info_list: #vpn connected successfully
+                        if self.server_info_list: # vpn connected successfully
                             for server in self.server_info_list:
                                 if server_name == server.name:
                                     return True
-                        elif not self.server_info_list: #existing Nordvpn connection found
+                        elif not self.server_info_list: # existing Nordvpn connection found
                             self.connect_btn.hide()
                             self.disconnect_btn.show()
                             self.statusbar.showMessage("Fetching Active Server...", 2000)
@@ -513,13 +513,14 @@ class MainWindow(QtWidgets.QMainWindow):
         try:
             self.statusbar.showMessage("Adding Secrets...", 1000)
             self.repaint()
-            password_flag = subprocess.run(['nmcli', 'connection', 'modify', self.connection_name, '+vpn.data', 'password-flags=0'])
-            password_flag.check_returncode()
             secrets = subprocess.run(['nmcli', 'connection', 'modify', self.connection_name, '+vpn.secrets', 'password='+self.password])
             secrets.check_returncode()
             user_secret = subprocess.run(['nmcli', 'connection', 'modify', self.connection_name, '+vpn.data', 'username='+self.username])
             user_secret.check_returncode()
-
+            disable_ipv6 = subprocess.run(['nmcli', 'connection', 'modify', self.connection_name, '+ipv6.method', 'ignore'])
+            disable_ipv6.check_returncode()
+            password_flag = subprocess.run(['nmcli', 'connection', 'modify', self.connection_name, '+vpn.data', 'password-flags=0'])
+            password_flag.check_returncode()
         except subprocess.CalledProcessError:
             self.statusbar.showMessage("ERROR: Secrets could not be added", 2000)
 
