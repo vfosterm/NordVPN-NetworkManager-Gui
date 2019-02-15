@@ -14,8 +14,13 @@ This project was inspired by [NordVPN-NetworkManager](https://github.com/Chadsr/
 * Secure - User secrets are passed directly from memory to the Network manager, root access is not required
 * Powerful - Supports a variety of different protocols and server types with more on the way.
 
+#### Using Installation Script
+Installation script should support Debian, Fedora, and Arch Linux. It will attempt to install the one dependency this program has (networkmanager-openvpn). It will also add a menu entry pointing to the current working directory of the installation script. So make sure you place the folder where you want the install to be located.
+
+Usage: `sudo ./install.sh`
+
 #### Known Issues
 * Auto connect not implemented
 * Randomize MAC not implemented
 * Kill Switch not implemented
-* No support for the following servers [Obfuscated, Anti-DDoS]
+* No support for obfuscated servers
