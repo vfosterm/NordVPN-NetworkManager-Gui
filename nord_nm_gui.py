@@ -13,7 +13,7 @@ from collections import namedtuple
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 connection_type_options = ['UDP', 'TCP']
-server_type_options = ['P2P', 'Standard', 'Double VPN', 'TOR over VPN', 'Dedicated IP', 'Anti-DDoS', 'Obfuscated Server']
+server_type_options = ['P2P', 'Standard', 'Double VPN', 'TOR over VPN', 'Dedicated IP'] # , 'Anti-DDoS', 'Obfuscated Server']
 api = "https://api.nordvpn.com/server"
 ServerInfo = namedtuple('ServerInfo', 'name, country, domain, type, load, categories')
 
@@ -336,7 +336,6 @@ class MainWindow(QtWidgets.QMainWindow):
         return sorted(server_country_list)
 
     def get_server_list(self):
-
         filtered = self.country_list.currentItem().text(), self.server_type_select.currentText(), self.connection_type_select.currentText()
         server_name_list = []
         self.server_list.clear()
@@ -389,13 +388,25 @@ class MainWindow(QtWidgets.QMainWindow):
         QtWidgets.QApplication.processEvents()
         self.retranslateUi()
 
-    def check_connection_validity(self):
-        if self.server_type_select.currentText() == 'Double VPN': #perhaps add pop up to give user the choice
-            self.connection_type_select.setCurrentIndex(1) #set to TCP
-
     def get_ovpn(self):
         # https://downloads.nordcdn.com/configs/files/ovpn_udp/servers/sg173.nordvpn.com.udp.ovpn
         self.ovpn_path = None
+        ovpn_url = None
+        udp_url = 'https://downloads.nordcdn.com/configs/files/ovpn_udp/servers/'
+        tcp_url = 'https://downloads.nordcdn.com/configs/files/ovpn_tcp/servers/'
+        udp_xor_url = 'https://downloads.nordcdn.com/configs/files/ovpn_xor_udp/servers/'
+        tcp_xor_url = 'https://downloads.nordcdn.com/configs/files/ovpn_xor_tcp/servers/'
+        print(self.server_type_select.currentText() != 'Obfuscated Server')
+        if (self.server_type_select.currentText() == 'Obfuscated Server') and (self.connection_type_select.currentText() == 'UDP'):
+            ovpn_url = udp_xor_url
+        elif (self.server_type_select.currentText() == 'Obfuscated Server') and (self.connection_type_select.currentText() == 'TCP'):
+            ovpn_url = tcp_xor_url
+        elif (self.server_type_select.currentText() != 'Obfuscated Server') and (self.connection_type_select.currentText() == 'UDP'):
+            ovpn_url = udp_url
+            print(ovpn_url)
+        elif (self.server_type_select.currentText() != 'Obfuscated Server') and (self.connection_type_select.currentText() =='TCP'):
+            ovpn_url = tcp_url
+        print(ovpn_url)
         try:
             if not os.path.isdir(self.config_path):
                 os.mkdir(self.config_path)
@@ -407,21 +418,54 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if self.connection_type_select.currentText() == 'UDP':
             filename = self.domain_list[self.server_list.currentRow()] + '.udp.ovpn'
-            ovpn_file = requests.get('https://downloads.nordcdn.com/configs/files/ovpn_udp/servers/' + filename, stream=True)
+            ovpn_file = requests.get(ovpn_url + filename, stream=True)
             if ovpn_file.status_code == requests.codes.ok:
                 self.ovpn_path = os.path.join(self.config_path, filename)
                 with open(self.ovpn_path, 'wb') as out_file:
                     shutil.copyfileobj(ovpn_file.raw, out_file)
             else: self.statusbar.showMessage('Error fetching configuration files', 2000)
+
         elif self.connection_type_select.currentText() == 'TCP':
             filename = self.domain_list[self.server_list.currentRow()] + '.tcp.ovpn'
-            ovpn_file = requests.get('https://downloads.nordcdn.com/configs/files/ovpn_tcp/servers/' + filename, stream=True)
+            ovpn_file = requests.get(ovpn_url + filename, stream=True)
             if ovpn_file.status_code == requests.codes.ok:
                 self.ovpn_path = os.path.join(self.config_path, filename)
-                with open(self.ovpn_path , 'wb') as out_file:
+                with open(self.ovpn_path, 'wb') as out_file:
                     shutil.copyfileobj(ovpn_file.raw, out_file)
             else: self.statusbar.showMessage('Error fetching configuration files', 2000)
+
         self.server_list.setFocus()
+
+    def import_ovpn(self):
+        try:
+            self.statusbar.showMessage("Importing Connection...")
+            self.repaint()
+            self.connection_name = self.generate_connection_name()
+            ovpn_file = self.connection_name + '.ovpn'
+            path = os.path.join(self.config_path, ovpn_file)
+            shutil.copy(self.ovpn_path, os.path.join(path))
+            os.remove(self.ovpn_path)
+            output = subprocess.run(['nmcli', 'connection', 'import', 'type', 'openvpn', 'file', path])
+            output.check_returncode()
+            os.remove(path)
+
+        except subprocess.CalledProcessError:
+            self.statusbar.showMessage("ERROR: Importing VPN configuration")
+
+    def add_secrets(self):
+        try:
+            self.statusbar.showMessage("Adding Secrets...", 1000)
+            self.repaint()
+            secrets = subprocess.run(['nmcli', 'connection', 'modify', self.connection_name, '+vpn.secrets', 'password='+self.password])
+            secrets.check_returncode()
+            user_secret = subprocess.run(['nmcli', 'connection', 'modify', self.connection_name, '+vpn.data', 'username='+self.username])
+            user_secret.check_returncode()
+            disable_ipv6 = subprocess.run(['nmcli', 'connection', 'modify', self.connection_name, '+ipv6.method', 'ignore'])
+            disable_ipv6.check_returncode()
+            password_flag = subprocess.run(['nmcli', 'connection', 'modify', self.connection_name, '+vpn.data', 'password-flags=0'])
+            password_flag.check_returncode()
+        except subprocess.CalledProcessError:
+            self.statusbar.showMessage("ERROR: Secrets could not be added", 2000)
 
     def generate_connection_name(self):
         server = self.server_info_list[self.server_list.currentRow()]
@@ -493,36 +537,9 @@ class MainWindow(QtWidgets.QMainWindow):
         except subprocess.CalledProcessError:
             self.statusbar.showMessage("ERROR: Network Manager query error", 2000)
 
-    def import_ovpn(self):
-        try:
-            self.statusbar.showMessage("Importing Connection...")
-            self.repaint()
-            self.connection_name = self.generate_connection_name()
-            ovpn_file = self.connection_name + '.ovpn'
-            path = os.path.join(self.config_path, ovpn_file)
-            shutil.copy(self.ovpn_path, os.path.join(path))
-            os.remove(self.ovpn_path)
-            output = subprocess.run(['nmcli', 'connection', 'import', 'type', 'openvpn', 'file', path])
-            output.check_returncode()
-            os.remove(path)
-
-        except subprocess.CalledProcessError:
-            self.statusbar.showMessage("ERROR: Importing VPN configuration")
-
-    def add_secrets(self):
-        try:
-            self.statusbar.showMessage("Adding Secrets...", 1000)
-            self.repaint()
-            secrets = subprocess.run(['nmcli', 'connection', 'modify', self.connection_name, '+vpn.secrets', 'password='+self.password])
-            secrets.check_returncode()
-            user_secret = subprocess.run(['nmcli', 'connection', 'modify', self.connection_name, '+vpn.data', 'username='+self.username])
-            user_secret.check_returncode()
-            disable_ipv6 = subprocess.run(['nmcli', 'connection', 'modify', self.connection_name, '+ipv6.method', 'ignore'])
-            disable_ipv6.check_returncode()
-            password_flag = subprocess.run(['nmcli', 'connection', 'modify', self.connection_name, '+vpn.data', 'password-flags=0'])
-            password_flag.check_returncode()
-        except subprocess.CalledProcessError:
-            self.statusbar.showMessage("ERROR: Secrets could not be added", 2000)
+    def check_connection_validity(self):
+        if self.server_type_select.currentText() == 'Double VPN': #perhaps add pop up to give user the choice
+            self.connection_type_select.setCurrentIndex(1) #set to TCP
 
     def enable_connection(self):
         try:
@@ -571,7 +588,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.disconnect_btn.hide()
         self.connect_btn.show()
         self.retranslateUi()
-
 
     def center_on_screen(self):
         resolution = QtWidgets.QDesktopWidget().screenGeometry()
