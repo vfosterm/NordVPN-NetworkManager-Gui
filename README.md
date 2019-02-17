@@ -21,6 +21,5 @@ Usage: `sudo ./install.sh`
 
 #### Known Issues
 * Auto connect not implemented
-* Randomize MAC not implemented
 * Kill Switch not implemented
 * No support for obfuscated servers

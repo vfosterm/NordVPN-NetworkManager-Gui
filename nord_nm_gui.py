@@ -27,6 +27,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.api_data = self.get_api_data()
         self.username = None
         self.password = None
+        self.sudo_password = None
         self.connection_name = None
         self.is_connected = False
         self.domain_list = []
@@ -483,7 +484,6 @@ class MainWindow(QtWidgets.QMainWindow):
         try:
             output = subprocess.run(['nmcli', '--mode', 'tabular', '--terse', '--fields', 'TYPE,NAME', 'connection', 'show', '--active'],
                                    stdout=subprocess.PIPE)
-            print(output)
             output.check_returncode()
             lines = output.stdout.decode('utf-8').split('\n')
 
@@ -498,17 +498,17 @@ class MainWindow(QtWidgets.QMainWindow):
                         print(connection_info)
                         if '[Standard' in connection_info:  # Normal servers
                             server_name = connection_info[0] + ' ' + connection_info[1]
-                        elif '[Double' in connection_info: # Double VPN server
+                        elif '[Double' in connection_info:  # Double VPN server
                             server_name = connection_info[0] + ' ' + '- ' + connection_info[2] + ' ' + connection_info[3]
-                        elif '[TOR' in connection_info: # Onion Over VPN
+                        elif '[TOR' in connection_info:  # Onion Over VPN
                             server_name = connection_info[0] + ' ' + connection_info[1] + ' ' + connection_info[2]
-                        elif '[Dedicated' in connection_info: # Dedicated IP
+                        elif '[Dedicated' in connection_info:  # Dedicated IP
                             server_name = connection_info[0] + ' ' + connection_info[1]
-                        if self.server_info_list: # vpn connected successfully
+                        if self.server_info_list:  # vpn connected successfully
                             for server in self.server_info_list:
                                 if server_name == server.name:
                                     return True
-                        elif not self.server_info_list: # existing Nordvpn connection found
+                        elif not self.server_info_list:  # existing Nordvpn connection found
                             self.connect_btn.hide()
                             self.disconnect_btn.show()
                             self.statusbar.showMessage("Fetching Active Server...", 2000)
@@ -537,9 +537,37 @@ class MainWindow(QtWidgets.QMainWindow):
         except subprocess.CalledProcessError:
             self.statusbar.showMessage("ERROR: Network Manager query error", 2000)
 
+    def randomize_mac(self):
+        try:
+            self.statusbar.showMessage("Randomizing MAC Address", 2000)
+            self.repaint()
+            output = subprocess.run(['nmcli', '--mode', 'tabular', '--terse', '--fields', 'TYPE,UUID', 'connection', 'show', '--active'],
+                                   stdout=subprocess.PIPE)
+            output.check_returncode()
+            lines = output.stdout.decode('utf-8').split('\n')
+            randomized_connections = []
+            for line in lines:
+                if line:
+                    elements = line.strip().split(':')
+                    uuid = elements[1]
+                    type = elements[0]
+                    if type != 'vpn':
+                        subprocess.run(['nmcli', 'connection', 'modify', uuid, type+'.cloned-mac-address', 'random'])
+                        randomized_connections.append(uuid)
+                    else:
+                        randomized_connections.append(uuid)
+            for uuid in randomized_connections:
+                subprocess.run(['nmcli', 'connection', 'down', uuid])
+                subprocess.run(['nmcli', 'connection', 'up', uuid])
+            self.statusbar.showMessage("Random MAC Address assigned", 2000)
+            self.repaint()
+        except subprocess.CalledProcessError:
+            self.statusbar.showMessage("ERROR: Randomizer failed", 2000)
+            self.repaint()
+
     def check_connection_validity(self):
-        if self.server_type_select.currentText() == 'Double VPN': #perhaps add pop up to give user the choice
-            self.connection_type_select.setCurrentIndex(1) #set to TCP
+        if self.server_type_select.currentText() == 'Double VPN':  # perhaps add pop up to give user the choice
+            self.connection_type_select.setCurrentIndex(1)  # set to TCP
 
     def enable_connection(self):
         try:
@@ -567,6 +595,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.statusbar.showMessage("ERROR: Failed to remove Connection", 2000)
 
     def connect(self):
+        if self.mac_changer_box.isChecked():
+            self.randomize_mac()
         self.check_connection_validity()
         self.get_ovpn()
         self.import_ovpn()
