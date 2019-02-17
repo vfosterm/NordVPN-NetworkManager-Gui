@@ -9,6 +9,7 @@ import json
 import hashlib
 import time
 import subprocess
+import configparser
 from collections import namedtuple
 from PyQt5 import QtCore, QtGui, QtWidgets
 
@@ -24,6 +25,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setObjectName("MainWindowObject")
         self.setWindowIcon(QtGui.QIcon('nordvpnicon.png'))
         self.config_path = os.path.join(os.path.abspath(os.getcwd()), '.configs')
+        self.conf_path = os.path.join(self.config_path, 'nord_settings.conf')
+        self.config = configparser.ConfigParser()
         self.api_data = self.get_api_data()
         self.username = None
         self.password = None
@@ -192,6 +195,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.connect_btn.clicked.connect(self.connect)
         self.disconnect_btn.clicked.connect(self.disconnect_vpn)
 
+        self.parse_conf()
         self.get_active_vpn()
         self.center_on_screen()
         self.retranslateUi()
@@ -278,8 +282,36 @@ class MainWindow(QtWidgets.QMainWindow):
         self.retranslate_login_ui()
         QtCore.QMetaObject.connectSlotsByName(self)
 
+        self.check_configs()
         self.password_input.returnPressed.connect(self.login_btn.click)
         self.login_btn.clicked.connect(self.verify_credentials)
+
+    def check_configs(self):
+        try:
+            if not os.path.isdir(self.config_path):
+                os.mkdir(self.config_path)
+            if not os.path.isfile(self.conf_path):
+                self.config['USER'] = {}
+                self.config['SETTINGS'] = {'MAC_RANDOMIZER': 'False', 'KILLSWITCH': 'False', 'AUTOCONNECT': 'False'}
+                self.write_conf()
+
+        except PermissionError:
+            self.statusbar.showMessage("Insufficient Permissions to create config folder", 2000)
+
+    def write_conf(self):
+        with open(self.conf_path, 'w') as configfile:
+            self.config.write(configfile)
+
+        configfile.close()
+
+    def parse_conf(self):
+        self.config.read(self.conf_path)
+        if self.config.getboolean('SETTINGS', 'mac_randomizer'):
+            self.mac_changer_box.setChecked(True)
+        if self.config['SETTINGS']['killswitch'] == 'True':
+             self.killswitch_btn.setChecked(True)
+        if self.config['SETTINGS']['autoconnect'] == 'True':
+             self.auto_connect_box.setChecked(True)
 
     def verify_credentials(self):
         try:
@@ -397,25 +429,15 @@ class MainWindow(QtWidgets.QMainWindow):
         tcp_url = 'https://downloads.nordcdn.com/configs/files/ovpn_tcp/servers/'
         udp_xor_url = 'https://downloads.nordcdn.com/configs/files/ovpn_xor_udp/servers/'
         tcp_xor_url = 'https://downloads.nordcdn.com/configs/files/ovpn_xor_tcp/servers/'
-        print(self.server_type_select.currentText() != 'Obfuscated Server')
+
         if (self.server_type_select.currentText() == 'Obfuscated Server') and (self.connection_type_select.currentText() == 'UDP'):
             ovpn_url = udp_xor_url
         elif (self.server_type_select.currentText() == 'Obfuscated Server') and (self.connection_type_select.currentText() == 'TCP'):
             ovpn_url = tcp_xor_url
         elif (self.server_type_select.currentText() != 'Obfuscated Server') and (self.connection_type_select.currentText() == 'UDP'):
             ovpn_url = udp_url
-            print(ovpn_url)
         elif (self.server_type_select.currentText() != 'Obfuscated Server') and (self.connection_type_select.currentText() =='TCP'):
             ovpn_url = tcp_url
-        print(ovpn_url)
-        try:
-            if not os.path.isdir(self.config_path):
-                os.mkdir(self.config_path)
-                print("config path created")
-            else:
-                print("config path exists")
-        except PermissionError:
-            self.statusbar.showMessage("Insufficient Permissions to create config folder", 2000)
 
         if self.connection_type_select.currentText() == 'UDP':
             filename = self.domain_list[self.server_list.currentRow()] + '.udp.ovpn'
@@ -545,21 +567,19 @@ class MainWindow(QtWidgets.QMainWindow):
                                    stdout=subprocess.PIPE)
             output.check_returncode()
             lines = output.stdout.decode('utf-8').split('\n')
-            randomized_connections = []
+
             for line in lines:
                 if line:
                     elements = line.strip().split(':')
                     uuid = elements[1]
-                    type = elements[0]
+                    connection_type = elements[0]
                     if type != 'vpn':
-                        subprocess.run(['nmcli', 'connection', 'modify', uuid, type+'.cloned-mac-address', 'random'])
-                        randomized_connections.append(uuid)
-                    else:
-                        randomized_connections.append(uuid)
-            for uuid in randomized_connections:
-                subprocess.run(['nmcli', 'connection', 'down', uuid])
-                subprocess.run(['nmcli', 'connection', 'up', uuid])
+                        subprocess.run(['nmcli', 'connection', 'down', uuid])
+                        subprocess.run(['nmcli', 'connection', 'modify', '--temporary', uuid, connection_type+'.cloned-mac-address', 'random'])
+                        subprocess.run(['nmcli', 'connection', 'up', uuid])
+
             self.statusbar.showMessage("Random MAC Address assigned", 2000)
+            self.write_conf()
             self.repaint()
         except subprocess.CalledProcessError:
             self.statusbar.showMessage("ERROR: Randomizer failed", 2000)
@@ -597,6 +617,11 @@ class MainWindow(QtWidgets.QMainWindow):
     def connect(self):
         if self.mac_changer_box.isChecked():
             self.randomize_mac()
+            self.config['SETTINGS']['mac_randomizer'] = 'True'
+            self.write_conf()
+        else:
+            self.config['SETTINGS']['mac_randomizer'] = 'False'
+            self.write_conf()
         self.check_connection_validity()
         self.get_ovpn()
         self.import_ovpn()
@@ -627,7 +652,7 @@ class MainWindow(QtWidgets.QMainWindow):
         _translate = QtCore.QCoreApplication.translate
         self.setWindowTitle(_translate("MainWindow", " "))
         self.title_label.setText(_translate("MainWindow", "<html><head/><body><pre align=\"center\" style=\" margin-top:12px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><a name=\"maincontent\"/><span style=\" font-family:\'SF Mono\'; font-size:6pt;\">█</span><span style=\" font-family:\'SF Mono\'; font-size:6pt;\">██╗   ██╗ ██████╗ ██████╗ ██████╗ ██╗   ██╗██████╗ ███╗   ██╗</span></pre><pre align=\"center\" style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-family:\'SF Mono\'; font-size:6pt;\">████╗  ██║██╔═══██╗██╔══██╗██╔══██╗██║   ██║██╔══██╗████╗  ██║</span></pre><pre align=\"center\" style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-family:\'SF Mono\'; font-size:6pt;\">██╔██╗ ██║██║   ██║██████╔╝██║  ██║██║   ██║██████╔╝██╔██╗ ██║</span></pre><pre align=\"center\" style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-family:\'SF Mono\'; font-size:6pt;\">██║╚██╗██║██║   ██║██╔══██╗██║  ██║╚██╗ ██╔╝██╔═══╝ ██║╚██╗██║</span></pre><pre align=\"center\" style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-family:\'SF Mono\'; font-size:6pt;\">██║ ╚████║╚██████╔╝██║  ██║██████╔╝ ╚████╔╝ ██║     ██║ ╚████║</span></pre><pre align=\"center\" style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-family:\'SF Mono\'; font-size:6pt;\">╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝╚═════╝   ╚═══╝  ╚═╝     ╚═╝  ╚═══╝</span></pre></body></html>"))
-        self.country_list_label.setText(_translate("MainWindow", "Country List"))
+        self.country_list_label.setText(_translate("MainWindow", "Countries"))
         self.auto_connect_box.setStatusTip(_translate("MainWindow", "Network Manager will auto-connect on system start"))
         self.auto_connect_box.setText(_translate("MainWindow", "Auto connect"))
         self.mac_changer_box.setStatusTip(_translate("MainWindow", "Randomize MAC address"))
@@ -638,7 +663,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.connection_type_select.setStatusTip(_translate("MainWindow", "Select connection type"))
         self.connect_btn.setText(_translate("MainWindow", "Connect"))
         self.disconnect_btn.setText(_translate("MainWindow", "Disconnect"))
-        self.label.setText(_translate("MainWindow", "Server List"))
+        self.label.setText(_translate("MainWindow", "Servers"))
 
     def retranslate_login_ui(self):
         _translate = QtCore.QCoreApplication.translate
