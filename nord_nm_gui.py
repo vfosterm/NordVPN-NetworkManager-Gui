@@ -25,9 +25,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setObjectName("MainWindowObject")
         self.setWindowIcon(QtGui.QIcon('nordvpnicon.png'))
         self.config_path = os.path.join(os.path.abspath(os.getcwd()), '.configs')
+        self.scripts_path = os.path.join(os.path.abspath(os.getcwd()), '.scripts')
         self.conf_path = os.path.join(self.config_path, 'nord_settings.conf')
         self.config = configparser.ConfigParser()
         self.api_data = self.get_api_data()
+        self.sudo_dialog = self.get_sudo()
+        self.sudo_dialog.show()
         self.username = None
         self.password = None
         self.sudo_password = None
@@ -35,6 +38,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.is_connected = False
         self.domain_list = []
         self.server_info_list = []
+        # self.get_sudo()
         self.login_ui()
         self.show()
 
@@ -281,7 +285,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.center_on_screen()
         self.retranslate_login_ui()
         QtCore.QMetaObject.connectSlotsByName(self)
-
         self.check_configs()
         self.password_input.returnPressed.connect(self.login_btn.click)
         self.login_btn.clicked.connect(self.verify_credentials)
@@ -585,6 +588,114 @@ class MainWindow(QtWidgets.QMainWindow):
             self.statusbar.showMessage("ERROR: Randomizer failed", 2000)
             self.repaint()
 
+    def get_sudo(self):
+        sudo_dialog = QtWidgets.QDialog(self)
+        sudo_dialog.setModal(True)
+        sudo_dialog.resize(399, 206)
+        icon = QtGui.QIcon.fromTheme("changes-prevent")
+        sudo_dialog.setWindowIcon(icon)
+
+        sudo_dialog.gridLayout = QtWidgets.QGridLayout(sudo_dialog)
+        sudo_dialog.gridLayout.setObjectName("gridLayout")
+        sudo_dialog.verticalLayout = QtWidgets.QVBoxLayout()
+        sudo_dialog.verticalLayout.setContentsMargins(-1, 18, -1, -1)
+        sudo_dialog.verticalLayout.setSpacing(16)
+        sudo_dialog.verticalLayout.setObjectName("verticalLayout")
+        sudo_dialog.text_label = QtWidgets.QLabel(sudo_dialog)
+        sudo_dialog.text_label.setTextFormat(QtCore.Qt.RichText)
+        sudo_dialog.text_label.setAlignment(QtCore.Qt.AlignLeading|QtCore.Qt.AlignLeft|QtCore.Qt.AlignVCenter)
+        sudo_dialog.text_label.setWordWrap(True)
+        sudo_dialog.text_label.setObjectName("text_label")
+        sudo_dialog.verticalLayout.addWidget(sudo_dialog.text_label)
+        sudo_dialog.sudo_password = QtWidgets.QLineEdit(self)
+        sudo_dialog.sudo_password.setCursor(QtGui.QCursor(QtCore.Qt.IBeamCursor))
+        sudo_dialog.sudo_password.setAlignment(QtCore.Qt.AlignCenter)
+        sudo_dialog.sudo_password.setClearButtonEnabled(False)
+        sudo_dialog.sudo_password.setObjectName("sudo_password")
+        sudo_dialog.sudo_password.setEchoMode(QtWidgets.QLineEdit.Password)
+        sudo_dialog.verticalLayout.addWidget(sudo_dialog.sudo_password)
+        sudo_dialog.gridLayout.addLayout(sudo_dialog.verticalLayout, 0, 0, 1, 1)
+        sudo_dialog.horizontalLayout = QtWidgets.QHBoxLayout()
+        sudo_dialog.horizontalLayout.setSizeConstraint(QtWidgets.QLayout.SetDefaultConstraint)
+        sudo_dialog.horizontalLayout.setContentsMargins(-1, 0, -1, 6)
+        sudo_dialog.horizontalLayout.setSpacing(0)
+        sudo_dialog.horizontalLayout.setObjectName("horizontalLayout")
+        spacerItem = QtWidgets.QSpacerItem(178, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
+        sudo_dialog.horizontalLayout.addItem(spacerItem)
+        sudo_dialog.accept_box = QtWidgets.QDialogButtonBox(sudo_dialog)
+        sudo_dialog.accept_box.setOrientation(QtCore.Qt.Horizontal)
+        sudo_dialog.accept_box.addButton('Login', QtWidgets.QDialogButtonBox.AcceptRole)
+        sudo_dialog.accept_box.addButton('Cancel', QtWidgets.QDialogButtonBox.RejectRole)
+        sudo_dialog.accept_box.setObjectName("accept_box")
+        sudo_dialog.horizontalLayout.addWidget(sudo_dialog.accept_box)
+        sudo_dialog.gridLayout.addLayout(sudo_dialog.horizontalLayout, 1, 0, 1, 1)
+        sudo_dialog.setWindowTitle("Authentication Needed")
+        sudo_dialog.text_label.setText("<html><head/><body><p>VPN Network Manager requires <span style=\" font-weight:600;\">sudo</span> permissions in order to move the auto-connect script to the Network Manager directory. Please input the <span style=\" font-weight:600;\">sudo</span> Password or run the program with elevated priveledges.</p></body></html>")
+
+        sudo_dialog.accept_box.accepted.connect(self.check_sudo)
+        sudo_dialog.accept_box.rejected.connect(sudo_dialog.close)
+        QtCore.QMetaObject.connectSlotsByName(sudo_dialog)
+
+        return sudo_dialog
+
+    def check_sudo(self):
+        self.sudo_password = self.sudo_dialog.sudo_password.text()
+        try:
+            p1 = subprocess.Popen(['echo', self.sudo_password], stdout=subprocess.PIPE)
+            p2 = subprocess.Popen(['sudo', '-S', '-k', 'whoami'], stdin=p1.stdout, stdout=subprocess.PIPE, encoding='utf-8')
+            p1.stdout.close()
+            output = p2.communicate()[0].strip()
+            p2.stdout.close()
+
+            if "root" in output:
+                self.sudo_dialog.close()
+                print('True')
+                return True
+            else:
+                return False
+        except Exception as ex:
+            print('failed', ex)
+
+    def get_interfaces(self):
+        try:
+            output = subprocess.run(['nmcli', '--mode', 'tabular', '--terse', '--fields', 'TYPE,DEVICE', 'device', 'status'], stdout=subprocess.PIPE)
+            output.check_returncode()
+
+            lines = output.stdout.decode('utf-8').split('\n')
+            interfaces = []
+
+            for line in lines:
+                if line:
+                    elements = line.strip().split(':')
+
+                    if (elements[0] == 'wifi') or (elements[0] == 'ethernet'):
+                        interfaces.append(elements[1])
+
+            return interfaces
+
+        except subprocess.CalledProcessError:
+            self.statusbar.showMessage("ERROR Fetching interfaces")
+
+    def set_auto_connect(self):
+        interfaces = self.get_interfaces()
+
+        if interfaces:
+            interface_string = '|'.join(interfaces)
+
+            script = (
+            '#!/bin/bash\n\n'
+            'if [[ "$1" =~ ' + interface_string + ' ]] && [[ "$2" =~ up|connectivity-change ]]; then\n'
+            '  nmcli con up id "' + self.connection_name + '"\n'
+            'fi\n'
+            )
+
+        try:
+            with open(self.scripts_path, 'w') as auto_connect:
+                print(script, file=auto_connect)
+        except Exception as ex:
+            self.statusbar.showMessage("ERROR building script file")
+
+
     def check_connection_validity(self):
         if self.server_type_select.currentText() == 'Double VPN':  # perhaps add pop up to give user the choice
             self.connection_type_select.setCurrentIndex(1)  # set to TCP
@@ -636,7 +747,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def disconnect_vpn(self):
         self.disable_connection()
-        self.remove_connection()
+        if not self.auto_connect_box.isChecked():
+            self.remove_connection()
         self.statusbar.clearMessage()
         self.repaint()
 
