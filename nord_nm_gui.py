@@ -26,11 +26,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowIcon(QtGui.QIcon('nordvpnicon.png'))
         self.config_path = os.path.join(os.path.abspath(os.getcwd()), '.configs')
         self.scripts_path = os.path.join(os.path.abspath(os.getcwd()), '.scripts')
+        self.network_manager_path = '/etc/NetworkManager/dispatcher.d/'
         self.conf_path = os.path.join(self.config_path, 'nord_settings.conf')
         self.config = configparser.ConfigParser()
         self.api_data = self.get_api_data()
-        self.sudo_dialog = self.get_sudo()
-        self.sudo_dialog.show()
         self.username = None
         self.password = None
         self.sudo_password = None
@@ -38,7 +37,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.is_connected = False
         self.domain_list = []
         self.server_info_list = []
-        # self.get_sudo()
         self.login_ui()
         self.show()
 
@@ -198,8 +196,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.connect_btn.clicked.connect(self.connect)
         self.disconnect_btn.clicked.connect(self.disconnect_vpn)
+        self.auto_connect_box.clicked.connect(self.disable_auto_connect)
 
         self.parse_conf()
+        self.repaint()
         self.get_active_vpn()
         self.center_on_screen()
         self.retranslateUi()
@@ -295,7 +295,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 os.mkdir(self.config_path)
             if not os.path.isfile(self.conf_path):
                 self.config['USER'] = {}
-                self.config['SETTINGS'] = {'MAC_RANDOMIZER': 'False', 'KILLSWITCH': 'False', 'AUTOCONNECT': 'False'}
+                self.config['SETTINGS'] = {'MAC_RANDOMIZER': 'False', 'KILL_SWITCH': 'False', 'AUTO_CONNECT': 'False'}
                 self.write_conf()
 
         except PermissionError:
@@ -311,10 +311,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.config.read(self.conf_path)
         if self.config.getboolean('SETTINGS', 'mac_randomizer'):
             self.mac_changer_box.setChecked(True)
-        if self.config['SETTINGS']['killswitch'] == 'True':
-             self.killswitch_btn.setChecked(True)
-        if self.config['SETTINGS']['autoconnect'] == 'True':
-             self.auto_connect_box.setChecked(True)
+        if self.config.getboolean('SETTINGS', 'kill_switch'):
+            self.killswitch_btn.setChecked(True)
+        if self.config.getboolean('SETTINGS', 'auto_connect'):
+            self.auto_connect_box.setChecked(True)
 
     def verify_credentials(self):
         try:
@@ -631,7 +631,7 @@ class MainWindow(QtWidgets.QMainWindow):
         sudo_dialog.gridLayout.addLayout(sudo_dialog.horizontalLayout, 1, 0, 1, 1)
         sudo_dialog.setWindowTitle("Authentication Needed")
         sudo_dialog.text_label.setText("<html><head/><body><p>VPN Network Manager requires <span style=\" font-weight:600;\">sudo</span> permissions in order to move the auto-connect script to the Network Manager directory. Please input the <span style=\" font-weight:600;\">sudo</span> Password or run the program with elevated priveledges.</p></body></html>")
-
+        self.center_on_screen()
         sudo_dialog.accept_box.accepted.connect(self.check_sudo)
         sudo_dialog.accept_box.rejected.connect(sudo_dialog.close)
         QtCore.QMetaObject.connectSlotsByName(sudo_dialog)
@@ -652,6 +652,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 print('True')
                 return True
             else:
+                error = QtWidgets.QErrorMessage(self.sudo_dialog)
+                error.showMessage("Invalid Password")
                 return False
         except Exception as ex:
             print('failed', ex)
@@ -681,19 +683,60 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if interfaces:
             interface_string = '|'.join(interfaces)
-
-            script = (
+            script =(
             '#!/bin/bash\n\n'
             'if [[ "$1" =~ ' + interface_string + ' ]] && [[ "$2" =~ up|connectivity-change ]]; then\n'
-            '  nmcli con up id "' + self.connection_name + '"\n'
+            '  nmcli con up id "' + self.generate_connection_name() + '"\n'
             'fi\n'
             )
-
         try:
-            with open(self.scripts_path, 'w') as auto_connect:
+            with open(os.path.join(self.scripts_path, 'auto_connect'), 'w') as auto_connect:
                 print(script, file=auto_connect)
         except Exception as ex:
+            print(ex)
             self.statusbar.showMessage("ERROR building script file")
+        try:
+            p1 = subprocess.Popen(['echo', self.sudo_password], stdout=subprocess.PIPE)
+            p2 = subprocess.Popen(['sudo', '-S', '-k', 'mv', self.scripts_path + '/auto_connect', self.network_manager_path + 'auto_connect'], stdin=p1.stdout, stdout=subprocess.PIPE)
+            p1.stdout.close()
+            p2.stdout.close()
+            p3 = subprocess.Popen(['echo', self.sudo_password], stdout=subprocess.PIPE)
+            p4 = subprocess.Popen(['sudo', '-S', '-k', 'chown', 'root:root', self.network_manager_path + 'auto_connect'], stdin=p3.stdout, stdout=subprocess.PIPE)
+            p3.stdout.close()
+            p4.stdout.close()
+            p5 = subprocess.Popen(['echo', self.sudo_password], stdout=subprocess.PIPE)
+            p6 = subprocess.Popen(['sudo', '-S', '-k', 'chmod', '750', self.network_manager_path + 'auto_connect'], stdin=p5.stdout, stdout=subprocess.PIPE)
+            p5.stdout.close()
+            p6.stdout.close()
+        except Exception as ex:
+            print(ex)
+
+    def disable_auto_connect(self):
+        if not self.auto_connect_box.isChecked() and not self.sudo_password:
+            self.sudo_dialog = self.get_sudo()
+            self.sudo_dialog.text_label.setText("<html><head/><body><p>VPN Network Manager requires <span style=\" font-weight:600;\">sudo</span> permissions in order to remove the auto-connect script from the Network Manager directory. Please input the <span style=\" font-weight:600;\">sudo</span> Password or run the program with elevated priveledges.</p></body></html>")
+            self.sudo_dialog.exec_()
+            try:
+                p1 = subprocess.Popen(['echo', self.sudo_password], stdout=subprocess.PIPE)
+                p2 = subprocess.Popen(['sudo', '-S', '-k', 'rm', self.network_manager_path + 'auto_connect'], stdin=p1.stdout, stdout=subprocess.PIPE)
+                p1.stdout.close()
+                p2.stdout.close()
+                self.config['SETTINGS']['auto_connect'] = 'False'
+                self.write_conf()
+            except Exception as ex:
+                print(ex)
+
+        elif not self.auto_connect_box.isChecked() and self.sudo_password:
+
+            try:
+                p1 = subprocess.Popen(['echo', self.sudo_password], stdout=subprocess.PIPE)
+                p2 = subprocess.Popen(['sudo', '-S', '-k', 'rm', self.network_manager_path + 'auto_connect'], stdin=p1.stdout, stdout=subprocess.PIPE)
+                p1.stdout.close()
+                p2.stdout.close()
+                self.config['SETTINGS']['auto_connect'] = 'False'
+                self.write_conf()
+            except Exception as ex:
+                print(ex)
 
 
     def check_connection_validity(self):
@@ -733,6 +776,14 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.config['SETTINGS']['mac_randomizer'] = 'False'
             self.write_conf()
+
+        if self.auto_connect_box.isChecked():
+            self.sudo_dialog = self.get_sudo()
+            self.sudo_dialog.exec_()
+            self.set_auto_connect()
+            self.config['SETTINGS']['auto_connect'] = 'True'
+            self.write_conf()
+
         self.check_connection_validity()
         self.get_ovpn()
         self.import_ovpn()
