@@ -35,6 +35,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sudo_password = None
         self.connection_name = None
         self.is_connected = False
+        self.killswitch_set = False
+        self.autoconnect_set = False
         self.domain_list = []
         self.server_info_list = []
         self.login_ui()
@@ -197,6 +199,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.connect_btn.clicked.connect(self.connect)
         self.disconnect_btn.clicked.connect(self.disconnect_vpn)
         self.auto_connect_box.clicked.connect(self.disable_auto_connect)
+        self.killswitch_btn.clicked.connect(self.disable_kill_switch)
 
         self.parse_conf()
         self.repaint()
@@ -594,7 +597,6 @@ class MainWindow(QtWidgets.QMainWindow):
         sudo_dialog.resize(399, 206)
         icon = QtGui.QIcon.fromTheme("changes-prevent")
         sudo_dialog.setWindowIcon(icon)
-
         sudo_dialog.gridLayout = QtWidgets.QGridLayout(sudo_dialog)
         sudo_dialog.gridLayout.setObjectName("gridLayout")
         sudo_dialog.verticalLayout = QtWidgets.QVBoxLayout()
@@ -635,7 +637,6 @@ class MainWindow(QtWidgets.QMainWindow):
         sudo_dialog.accept_box.accepted.connect(self.check_sudo)
         sudo_dialog.accept_box.rejected.connect(sudo_dialog.close)
         QtCore.QMetaObject.connectSlotsByName(sudo_dialog)
-
         return sudo_dialog
 
     def check_sudo(self):
@@ -705,14 +706,16 @@ class MainWindow(QtWidgets.QMainWindow):
             p3.stdout.close()
             p4.stdout.close()
             p5 = subprocess.Popen(['echo', self.sudo_password], stdout=subprocess.PIPE)
-            p6 = subprocess.Popen(['sudo', '-S', '-k', 'chmod', '750', self.network_manager_path + 'auto_connect'], stdin=p5.stdout, stdout=subprocess.PIPE)
+            p6 = subprocess.Popen(['sudo', '-S', '-k', 'chmod', '744', self.network_manager_path + 'auto_connect'], stdin=p5.stdout, stdout=subprocess.PIPE)
             p5.stdout.close()
             p6.stdout.close()
         except Exception as ex:
             print(ex)
 
     def disable_auto_connect(self):
-        if not self.auto_connect_box.isChecked() and not self.sudo_password:
+        self.config.read(self.conf_path)
+
+        if not self.auto_connect_box.isChecked() and not self.sudo_password and self.config.getboolean('SETTINGS', 'auto_connect'):
             self.sudo_dialog = self.get_sudo()
             self.sudo_dialog.text_label.setText("<html><head/><body><p>VPN Network Manager requires <span style=\" font-weight:600;\">sudo</span> permissions in order to remove the auto-connect script from the Network Manager directory. Please input the <span style=\" font-weight:600;\">sudo</span> Password or run the program with elevated priveledges.</p></body></html>")
             self.sudo_dialog.exec_()
@@ -726,7 +729,7 @@ class MainWindow(QtWidgets.QMainWindow):
             except Exception as ex:
                 print(ex)
 
-        elif not self.auto_connect_box.isChecked() and self.sudo_password:
+        elif not self.auto_connect_box.isChecked() and self.sudo_password and self.config.getboolean('SETTINGS', 'auto_connect'):
 
             try:
                 p1 = subprocess.Popen(['echo', self.sudo_password], stdout=subprocess.PIPE)
@@ -738,6 +741,83 @@ class MainWindow(QtWidgets.QMainWindow):
             except Exception as ex:
                 print(ex)
 
+    def set_kill_switch(self):
+        interfaces = self.get_interfaces()
+
+        if interfaces:
+            interface_string = '|'.join(interfaces)
+
+            script = (
+                '#!/bin/bash\n'
+                'PERSISTENCE_FILE=' + os.path.join(self.scripts_path, '.killswitch_data') + '\n\n'
+                'case $2 in'
+                '  vpn-up)\n'
+                '    nmcli -f type,device connection | awk \'$1~/^vpn$/ && $2~/[^\-][^\-]/ { print $2; }\' > "${PERSISTENCE_FILE}"\n'
+                '  ;;\n'
+                '  vpn-down)\n'
+                '    xargs -n 1 -a "${PERSISTENCE_FILE}" nmcli device disconnect\n'
+                '  ;;\n'
+                'esac\n'
+            )
+
+        try:
+            with open(os.path.join(self.scripts_path, 'kill_switch'), 'w') as kill_switch:
+                print(script, file=kill_switch)
+
+            p1 = subprocess.Popen(['echo', self.sudo_password], stdout=subprocess.PIPE)
+            p2 = subprocess.Popen(['sudo', '-S', '-k', 'mv', self.scripts_path + '/kill_switch', self.network_manager_path + 'kill_switch'], stdin=p1.stdout, stdout=subprocess.PIPE)
+            p1.stdout.close()
+            p2.stdout.close()
+            time.sleep(0.5)
+            p3 = subprocess.Popen(['echo', self.sudo_password], stdout=subprocess.PIPE)
+            p4 = subprocess.Popen(['sudo', '-S', '-k', 'chown', 'root:root', self.network_manager_path + 'kill_switch'], stdin=p3.stdout, stdout=subprocess.PIPE)
+            time.sleep(0.5)
+            p3.stdout.close()
+            p4.stdout.close()
+            p5 = subprocess.Popen(['echo', self.sudo_password], stdout=subprocess.PIPE)
+            p6 = subprocess.Popen(['sudo', '-S', '-k', 'chmod', '744', self.network_manager_path + 'kill_switch'], stdin=p5.stdout, stdout=subprocess.PIPE)
+            p5.stdout.close()
+            p6.stdout.close()
+
+            self.statusbar.showMessage('Kill switch activated', 2000)
+            self.repaint()
+        except Exception as ex:
+            print(ex)
+
+    def disable_kill_switch(self):
+        if not self.killswitch_btn.isChecked() and not self.sudo_password and self.config.getboolean('SETTINGS', 'kill_switch'):
+            self.sudo_dialog = self.get_sudo()
+            self.sudo_dialog.text_label.setText("<html><head/><body><p>VPN Network Manager requires <span style=\" font-weight:600;\">sudo</span> permissions in order to remove the kill switch script from the Network Manager directory. Please input the <span style=\" font-weight:600;\">sudo</span> Password or run the program with elevated priveledges.</p></body></html>")
+            self.sudo_dialog.exec_()
+            try:
+                p1 = subprocess.Popen(['echo', self.sudo_password], stdout=subprocess.PIPE)
+                p2 = subprocess.Popen(['sudo', '-S', '-k', 'rm', self.network_manager_path + 'kill_switch'], stdin=p1.stdout, stdout=subprocess.PIPE)
+                p1.stdout.close()
+                p2.stdout.close()
+                self.statusbar.showMessage('Kill switch disabled', 2000)
+                self.repaint()
+                self.config['SETTINGS']['kill_switch'] = 'False'
+                self.write_conf()
+
+            except subprocess.CalledProcessError:
+                self.statusbar.showMessage('ERROR disabling kill switch', 2000)
+                self.repaint()
+
+        elif not self.killswitch_btn.isChecked() and self.sudo_password and self.config.getboolean('SETTINGS', 'kill_switch'):
+
+            try:
+                p1 = subprocess.Popen(['echo', self.sudo_password], stdout=subprocess.PIPE)
+                p2 = subprocess.Popen(['sudo', '-S', '-k', 'rm', self.network_manager_path + 'kill_switch'], stdin=p1.stdout, stdout=subprocess.PIPE)
+                p1.stdout.close()
+                p2.stdout.close()
+                self.statusbar.showMessage('Kill switch disabled', 2000)
+                self.repaint()
+                self.config['SETTINGS']['kill_switch'] = 'False'
+                self.write_conf()
+
+            except subprocess.CalledProcessError:
+                self.statusbar.showMessage('ERROR disabling kill switch', 2000)
+                self.repaint()
 
     def check_connection_validity(self):
         if self.server_type_select.currentText() == 'Double VPN':  # perhaps add pop up to give user the choice
@@ -777,9 +857,13 @@ class MainWindow(QtWidgets.QMainWindow):
             self.config['SETTINGS']['mac_randomizer'] = 'False'
             self.write_conf()
 
-        if self.auto_connect_box.isChecked():
+        if self.auto_connect_box.isChecked() and not self.sudo_password:  # prompt for sudo password
             self.sudo_dialog = self.get_sudo()
             self.sudo_dialog.exec_()
+            self.set_auto_connect()
+            self.config['SETTINGS']['auto_connect'] = 'True'
+            self.write_conf()
+        elif self.auto_connect_box.isChecked() and self.sudo_password:  # sudo password exists in memory
             self.set_auto_connect()
             self.config['SETTINGS']['auto_connect'] = 'True'
             self.write_conf()
@@ -791,7 +875,20 @@ class MainWindow(QtWidgets.QMainWindow):
         self.enable_connection()
         self.statusbar.clearMessage()
         self.repaint()
-        if self.get_active_vpn():
+
+        if self.killswitch_btn.isChecked() and not self.sudo_password:
+            self.sudo_dialog = self.get_sudo()
+            self.sudo_dialog.text_label.setText("<html><head/><body><p>VPN Network Manager requires <span style=\" font-weight:600;\">sudo</span> permissions in order to move the kill switch script to the Network Manager directory. Please input the <span style=\" font-weight:600;\">sudo</span> Password or run the program with elevated priveledges.</p></body></html>")
+            self.sudo_dialog.exec_()
+            self.set_kill_switch()
+            self.config['SETTINGS']['kill_switch'] = 'True'
+            self.write_conf()
+        elif self.killswitch_btn.isChecked() and self.sudo_password:
+            self.set_kill_switch()
+            self.config['SETTINGS']['kill_switch'] = 'True'
+            self.write_conf()
+
+        if self.get_active_vpn():  # if connection successful
             self.connect_btn.hide()
             self.disconnect_btn.show()
             self.retranslateUi()
