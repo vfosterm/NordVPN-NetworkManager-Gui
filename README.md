@@ -20,5 +20,4 @@ Installation script should support Debian, Fedora, and Arch Linux. It will attem
 Usage: `sudo ./install.sh`
 
 #### Known Issues
-* Kill Switch not implemented
 * No support for obfuscated servers
