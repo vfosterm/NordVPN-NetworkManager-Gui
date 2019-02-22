@@ -13,6 +13,9 @@ This project was inspired by [NordVPN-NetworkManager](https://github.com/Chadsr/
 * Clean - All configuration files are deleted after disconnection
 * Secure - User secrets are passed directly from memory to the Network manager, root access is not required
 * Powerful - Supports a variety of different protocols and server types with more on the way.
+* Kill Switch - internet connection is disabled if VPN connection is lost
+* Auto Connect - VPN is connection is established on system start
+* Randomize MAC - Random MAC address is assigned before establishing connection
 
 #### Using Installation Script
 Installation script should support Debian, Fedora, and Arch Linux. It will attempt to install the one dependency this program has (networkmanager-openvpn). It will also add a menu entry pointing to the current working directory of the installation script. So make sure you place the folder where you want the install to be located.
