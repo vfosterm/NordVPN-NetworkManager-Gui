@@ -34,6 +34,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.password = None
         self.sudo_password = None
         self.connection_name = None
+        self.connected_server = None
         self.domain_list = []
         self.server_info_list = []
         self.login_ui()
@@ -534,6 +535,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         if self.server_info_list:  # vpn connected successfully
                             for server in self.server_info_list:
                                 if server_name == server.name:
+                                    self.connected_server = server.name
                                     return True
                         elif not self.server_info_list:  # existing Nordvpn connection found
                             self.connect_btn.hide()
@@ -557,12 +559,16 @@ class MainWindow(QtWidgets.QMainWindow):
                                     self.server_list.setCurrentItem(server_list_item[0])
                                     self.server_list.setFocus()
                                     self.connection_name = connection_name
+                                    self.connected_server = server.name
                                     return False
                         else:
                             self.statusbar.showMessage("Warning! Unknown VPN connection found", 2000)
+                            self.repaint()
                             return False
+
         except subprocess.CalledProcessError:
             self.statusbar.showMessage("ERROR: Network Manager query error", 2000)
+            self.repaint()
 
     def randomize_mac(self):
         try:
@@ -681,8 +687,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.statusbar.showMessage("ERROR Fetching interfaces")
 
     def set_auto_connect(self):
+        self.config.read(self.conf_path)
         interfaces = self.get_interfaces()
-
         if interfaces:
             interface_string = '|'.join(interfaces)
             script =(
@@ -710,6 +716,8 @@ class MainWindow(QtWidgets.QMainWindow):
             p6 = subprocess.Popen(['sudo', '-S', 'chmod', '744', self.network_manager_path + 'auto_connect'], stdin=p5.stdout, stdout=subprocess.PIPE)
             p5.stdout.close()
             p6.stdout.close()
+            self.config['SETTINGS']['auto_connect'] = 'True'
+            self.write_conf()
         except Exception as ex:
             print(ex)
 
@@ -742,7 +750,12 @@ class MainWindow(QtWidgets.QMainWindow):
             except Exception as ex:
                 print(ex)
 
-        elif self.auto_connect_box.isChecked() and self.get_active_vpn:
+        elif self.auto_connect_box.isChecked() and self.get_active_vpn() and self.sudo_password:
+            self.set_auto_connect()
+
+        elif self.auto_connect_box.isChecked() and self.get_active_vpn() and not self.sudo_password:
+            self.sudo_dialog = self.get_sudo()
+            self.sudo_dialog.exec_()
             self.set_auto_connect()
 
     def set_kill_switch(self):
@@ -861,12 +874,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.sudo_dialog = self.get_sudo()
             self.sudo_dialog.exec_()
             self.set_auto_connect()
-            self.config['SETTINGS']['auto_connect'] = 'True'
-            self.write_conf()
+
         elif self.auto_connect_box.isChecked() and self.sudo_password:  # sudo password exists in memory
             self.set_auto_connect()
-            self.config['SETTINGS']['auto_connect'] = 'True'
-            self.write_conf()
 
         self.check_connection_validity()
         self.get_ovpn()
