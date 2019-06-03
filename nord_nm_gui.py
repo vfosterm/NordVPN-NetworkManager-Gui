@@ -24,8 +24,9 @@ class MainWindow(QtWidgets.QMainWindow):
         super(MainWindow, self).__init__()
         self.setObjectName("MainWindowObject")
         self.setWindowIcon(QtGui.QIcon('nordvpnicon.png'))
-        self.config_path = os.path.join(os.path.abspath(os.getcwd()), '.configs')
-        self.scripts_path = os.path.join(os.path.abspath(os.getcwd()), '.scripts')
+        self.base_dir = os.path.join(os.path.abspath(os.path.expanduser('~')), '.nordnmconfigs')
+        self.config_path = os.path.join(os.path.abspath(self.base_dir), '.configs')
+        self.scripts_path = os.path.join(os.path.abspath(self.base_dir), '.scripts')
         self.network_manager_path = '/etc/NetworkManager/dispatcher.d/'
         self.conf_path = os.path.join(self.config_path, 'nord_settings.conf')
         self.config = configparser.ConfigParser()
@@ -292,6 +293,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def check_configs(self):
         try:
+            if not os.path.isdir(self.base_dir):
+                os.mkdir(self.base_dir)
             if not os.path.isdir(self.config_path):
                 os.mkdir(self.config_path)
             if not os.path.isdir(self.scripts_path):
@@ -442,7 +445,7 @@ class MainWindow(QtWidgets.QMainWindow):
             ovpn_url = tcp_xor_url
         elif (self.server_type_select.currentText() != 'Obfuscated Server') and (self.connection_type_select.currentText() == 'UDP'):
             ovpn_url = udp_url
-        elif (self.server_type_select.currentText() != 'Obfuscated Server') and (self.connection_type_select.currentText() =='TCP'):
+        elif (self.server_type_select.currentText() != 'Obfuscated Server') and (self.connection_type_select.currentText() == 'TCP'):
             ovpn_url = tcp_url
 
         if self.connection_type_select.currentText() == 'UDP':
@@ -471,8 +474,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.repaint()
             self.connection_name = self.generate_connection_name()
             ovpn_file = self.connection_name + '.ovpn'
-            path = os.path.join(self.config_path, ovpn_file)
-            shutil.copy(self.ovpn_path, os.path.join(path))
+            path = os.path.join(self.config_path, ovpn_file) #changes name from default
+            shutil.copy(self.ovpn_path, path)
             os.remove(self.ovpn_path)
             output = subprocess.run(['nmcli', 'connection', 'import', 'type', 'openvpn', 'file', path])
             output.check_returncode()
