@@ -18,9 +18,12 @@ This project was inspired by [NordVPN-NetworkManager](https://github.com/Chadsr/
 * Randomize MAC - Random MAC address is assigned before establishing connection
 
 #### Using Installation Script
-Installation script should support Debian, Fedora, and Arch Linux. It will attempt to install the one dependency this program has (networkmanager-openvpn). It will also add a menu entry pointing to the current working directory of the installation script. So make sure you place the folder where you want the install to be located.
+Installation script should support Debian, Fedora, and Arch Linux. It will attempt to install the one dependency this program has (networkmanager-openvpn). It will also add a menu entry pointing to the current working directory of the installation script. So make sure you place the folder where you want the install to be located. Installation script is only intended for the release version, not the python script itself.
 
 Usage: `sudo ./install.sh`
 
 #### Known Issues
 * No support for obfuscated servers
+
+### WARNING
+Make sure to disable webrtc in your browser of choice. Using WebRTC may leak your original IP address.
