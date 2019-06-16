@@ -863,6 +863,52 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.killswitch_btn.setChecked(False)
                 return False
 
+    def disable_ipv6(self):
+        if self.sudo_password:
+            try:
+                p1 = subprocess.Popen(['echo', self.sudo_password], stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
+                p2 = subprocess.Popen(['sudo', '-S', 'sysctl', '-w', 'net.ipv6.conf.all.disable_ipv6=1', '&&', 'sysctl', '-w', 'net.ipv6.conf.default.disable_ipv6=1'], stdin=p1.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                p1.stdout.close()
+                p2.stdout.close()
+            except subprocess.CalledProcessError:
+                self.statusbar.showMessage("ERROR: disabling IPV6 failed", 2000)
+        else:
+            self.sudo_dialog = self.get_sudo()
+            self.sudo_dialog.text_label.setText("<html><head/><body><p>VPN Network Manager requires <span style=\" font-weight:600;\">sudo</span> permissions in order to disable IPV6. Please input the <span style=\" font-weight:600;\">sudo</span> Password or run the program with elevated priveledges.</p></body></html>")
+            self.sudo_dialog.exec_()
+
+            if self.sudo_password:
+                try:
+                    p1 = subprocess.Popen(['echo', self.sudo_password], stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
+                    p2 = subprocess.Popen(['sudo', '-S', 'sysctl', '-w', 'net.ipv6.conf.all.disable_ipv6=1', '&&', 'sysctl', '-w', 'net.ipv6.conf.default.disable_ipv6=0'], stdin=p1.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    p1.stdout.close()
+                    p2.stdout.close()
+                except subprocess.CalledProcessError:
+                    self.statusbar.showMessage("ERROR: disabling IPV6 failed", 2000)
+
+    def enable_ipv6(self):
+        if self.sudo_password:
+            try:
+                p1 = subprocess.Popen(['echo', self.sudo_password], stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
+                p2 = subprocess.Popen(['sudo', '-S', 'sysctl', '-w', 'net.ipv6.conf.all.disable_ipv6=0', '&&', 'sysctl', '-w', 'net.ipv6.conf.default.disable_ipv6=0'], stdin=p1.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                p1.stdout.close()
+                p2.stdout.close()
+            except subprocess.CalledProcessError:
+                self.statusbar.showMessage("ERROR: disabling IPV6 failed", 2000)
+        else:
+            self.sudo_dialog = self.get_sudo()
+            self.sudo_dialog.text_label.setText("<html><head/><body><p>VPN Network Manager requires <span style=\" font-weight:600;\">sudo</span> permissions in order to enable IPV6. Please input the <span style=\" font-weight:600;\">sudo</span> Password or run the program with elevated priveledges.</p></body></html>")
+            self.sudo_dialog.exec_()
+
+            if self.sudo_password:
+                try:
+                    p1 = subprocess.Popen(['echo', self.sudo_password], stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
+                    p2 = subprocess.Popen(['sudo', '-S', 'sysctl', '-w', 'net.ipv6.conf.all.disable_ipv6=0', '&&', 'sysctl', '-w', 'net.ipv6.conf.default.disable_ipv6=0'], stdin=p1.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    p1.stdout.close()
+                    p2.stdout.close()
+                except subprocess.CalledProcessError:
+                    self.statusbar.showMessage("ERROR: Enabling IPV6 failed", 2000)
+
     def check_connection_validity(self):
         if self.server_type_select.currentText() == 'Double VPN':  # perhaps add pop up to give user the choice
             self.connection_type_select.setCurrentIndex(1)  # set to TCP
@@ -912,8 +958,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 return False
         elif self.auto_connect_box.isChecked() and self.sudo_password:  # sudo password exists in memory
             self.set_auto_connect()
-
         self.check_connection_validity()
+        self.disable_ipv6()
         self.get_ovpn()
         self.import_ovpn()
         self.add_secrets()
@@ -951,6 +997,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.disable_auto_connect()
         self.disable_connection()
         self.remove_connection()
+        self.enable_ipv6()
         self.statusbar.clearMessage()
         self.repaint()
 
