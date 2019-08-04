@@ -1,4 +1,9 @@
 # NordVPN Network Manager GUI
+![License Badge](https://img.shields.io/github/license/vfosterm/NordVPN-NetworkManager-Gui)
+![Issues](https://img.shields.io/github/issues-closed/vfosterm/NordVPN-NetworkManager-Gui)
+![Release](https://img.shields.io/github/release/vfosterm/NordVPN-NetworkManager-Gui)
+![commits-since](https://img.shields.io/github/commits-since/vfosterm/NordVPN-NetworkManager-Gui/latest)
+
 ![Login Screen](./screenshots/loginscreen.png)
 ![Main Screen](./screenshots/mainscreen.png)
 #### About
