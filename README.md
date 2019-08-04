@@ -1,8 +1,9 @@
 # NordVPN Network Manager GUI
-![License Badge](https://img.shields.io/github/license/vfosterm/NordVPN-NetworkManager-Gui)
-![Issues](https://img.shields.io/github/issues-closed/vfosterm/NordVPN-NetworkManager-Gui)
-![Release](https://img.shields.io/github/release/vfosterm/NordVPN-NetworkManager-Gui)
-![commits-since](https://img.shields.io/github/commits-since/vfosterm/NordVPN-NetworkManager-Gui/latest)
+[![License Badge](https://img.shields.io/github/license/vfosterm/NordVPN-NetworkManager-Gui?style=for-the-badge)](https://github.com/vfosterm/NordVPN-NetworkManager-Gui/blob/master/LICENSE)
+[![Issues](https://img.shields.io/github/issues-closed/vfosterm/NordVPN-NetworkManager-Gui?style=for-the-badge)](https://github.com/vfosterm/NordVPN-NetworkManager-Gui/issues)
+[![Release](https://img.shields.io/github/release/vfosterm/NordVPN-NetworkManager-Gui?style=for-the-badge)](https://github.com/vfosterm/NordVPN-NetworkManager-Gui/releases/latest)
+[![commits-since](https://img.shields.io/github/commits-since/vfosterm/NordVPN-NetworkManager-Gui/latest)](https://github.com/vfosterm/NordVPN-NetworkManager-Gui/commits/master)
+[![forthebadge](https://forthebadge.com/images/badges/made-with-python.svg)](https://python.org)
 
 ![Login Screen](./screenshots/loginscreen.png)
 ![Main Screen](./screenshots/mainscreen.png)
