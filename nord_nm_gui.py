@@ -352,42 +352,60 @@ class MainWindow(QtWidgets.QMainWindow):
         Sends a final hash of (salt+password)+key and token to Nord api
         Verifies responses and updates GUI
         """
-        try:
-            resp = requests.get('https://api.nordvpn.com/token/token/' + self.user_input.text(), timeout=5)
-            if resp.status_code == requests.codes.ok:
-                token_json = json.loads(resp.text)
-                token = token_json['token']
-                salt = token_json['salt']
-                key = token_json['key']
+        if self.user_input.text() and self.password_input.text():
+            self.statusbar.showMessage('Login Success', 2000)
+            self.username = self.user_input.text()
+            self.password = self.password_input.text()
+            self.repaint()
+            time.sleep(0.5)
+            self.hide()
+            self.main_ui()
+        else:
+            self.statusbar.showMessage('Username or password field cannot be empty, 2000')
+        # try:
+        #     resp = requests.get('https://apself.statusbar.showMessage('Login Success', 2000)
+    #                         self.username = self.user_input.text()
+    #                         self.password = self.password_input.text()
+    #                         self.repaint()
+    #                         time.sleep(0.5)
+    #                         self.hide()
+    #                         self.main_ui()i.nordvpn.com/token/token/' + self.user_input.text(), timeout=5)
+        #
+        #     if resp.status_code == requests.codes.ok:
+        #         token_json = json.loads(resp.text)
+        #         token = token_json['token']
+        #         salt = token_json['salt']
+        #         key = token_json['key']
+        #
+        #         password_hash = hashlib.sha512(salt.encode() + self.password_input.text().encode())
+        #         final_hash = hashlib.sha512(password_hash.hexdigest().encode() + key.encode())
+        #
+        #         try:
+        #             resp = requests.get('https://api.nordvpn.com/token/verify/' + token + '/' + final_hash.hexdigest(), timeout=5)
+        #             if resp.status_code == requests.codes.ok:
+        #                 self.statusbar.showMessage('Login Success', 2000)
+        #                 self.username = self.user_input.text()
+        #                 self.password = self.password_input.text()
+        #                 self.repaint()
+        #                 time.sleep(0.5)
+        #                 self.hide()
+        #                 self.main_ui()
+        #             else:
+        #                 self.statusbar.showMessage('Invalid Credentials', 2000)
+        #                 self.user_input.clear()
+        #                 self.password_input.clear()
+        #                 self.user_input.setFocus()
+        #         except Exception as ex:
+        #             self.statusbar.showMessage('Invalid Credentials', 2000)
+        #             self.user_input.clear()
+        #             self.password_input.clear()
+        #             self.user_input.setFocus()
+        #     else:
+        #         self.statusbar.showMessage("API Error: could not fetch token", 2000)
+        # except Exception as ex:
+        #     self.statusbar.showMessage("API Error: could not fetch token", 2000)
+        #     self.get_api_data()
 
-                password_hash = hashlib.sha512(salt.encode() + self.password_input.text().encode())
-                final_hash = hashlib.sha512(password_hash.hexdigest().encode() + key.encode())
-
-                try:
-                    resp = requests.get('https://api.nordvpn.com/token/verify/' + token + '/' + final_hash.hexdigest(), timeout=5)
-                    if resp.status_code == requests.codes.ok:
-                        self.statusbar.showMessage('Login Success', 2000)
-                        self.username = self.user_input.text()
-                        self.password = self.password_input.text()
-                        self.repaint()
-                        time.sleep(0.5)
-                        self.hide()
-                        self.main_ui()
-                    else:
-                        self.statusbar.showMessage('Invalid Credentials', 2000)
-                        self.user_input.clear()
-                        self.password_input.clear()
-                        self.user_input.setFocus()
-                except Exception as ex:
-                    self.statusbar.showMessage('Invalid Credentials', 2000)
-                    self.user_input.clear()
-                    self.password_input.clear()
-                    self.user_input.setFocus()
-            else:
-                self.statusbar.showMessage("API Error: could not fetch token", 2000)
-        except Exception as ex:
-            self.statusbar.showMessage("API Error: could not fetch token", 2000)
-            self.get_api_data()
     def get_api_data(self):
         """
         Gets json file containing server information
@@ -544,6 +562,8 @@ class MainWindow(QtWidgets.QMainWindow):
         try:
             self.statusbar.showMessage("Adding Secrets...", 1000)
             self.repaint()
+            password_flag = subprocess.run(['nmcli', 'connection', 'modify', self.connection_name, '+vpn.data', 'password-flags=0'])
+            password_flag.check_returncode()
             secrets = subprocess.run(['nmcli', 'connection', 'modify', self.connection_name, '+vpn.secrets', 'password='+self.password])
             secrets.check_returncode()
             user_secret = subprocess.run(['nmcli', 'connection', 'modify', self.connection_name, '+vpn.data', 'username='+self.username])
