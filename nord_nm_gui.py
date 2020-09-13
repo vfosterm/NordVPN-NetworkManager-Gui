@@ -7,6 +7,7 @@ import requests
 import shutil
 import time
 import prctl
+import keyring
 import subprocess
 import configparser
 from collections import namedtuple
@@ -62,7 +63,7 @@ class MainWindow(QtWidgets.QMainWindow):
         tray_menu.addAction(show_action)
         tray_menu.addAction(hide_action)
         tray_menu.addAction(quit_action)
-        self.tray_icon.setToolTip("NordVPN NM")
+        self.tray_icon.setToolTip("NordVPN")
         self.tray_icon.setContextMenu(tray_menu)
         self.tray_icon.show()
 
@@ -74,12 +75,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.show()
 
     def quitAppEvent(self):
+        """
+        Quit GUI from system tray
+        """
         qApp.quit()
 
-    """
-    Override default close event
-    """
     def closeEvent(self, event):
+        """
+        Override default close event
+        """
         event.ignore()
         self.hide()
         self.tray_icon.showMessage(
@@ -89,10 +93,10 @@ class MainWindow(QtWidgets.QMainWindow):
             2500
         )
 
-    """
-    Resume from SystemTray
-    """
     def resume(self, activation_reason):
+        """
+        Resume from SystemTray
+        """
         if activation_reason == 3:
             self.show()
 
@@ -331,16 +335,22 @@ class MainWindow(QtWidgets.QMainWindow):
         self.horizontalLayout_2.addWidget(self.password_input)
         self.verticalLayout.addLayout(self.horizontalLayout_2)
         self.horizontalLayout_3.addLayout(self.verticalLayout)
-        spacerItem = QtWidgets.QSpacerItem(80, 20, QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Minimum)
+        spacerItem = QtWidgets.QSpacerItem(57, 20, QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Minimum)
         self.horizontalLayout_3.addItem(spacerItem)
+        self.verticalLayout_6 = QtWidgets.QVBoxLayout()
+        self.verticalLayout_6.setObjectName("verticalLayout_6")
         self.login_btn = QtWidgets.QPushButton(self.centralwidget)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.login_btn.sizePolicy().hasHeightForWidth())
         self.login_btn.setSizePolicy(sizePolicy)
         self.login_btn.setObjectName("login_btn")
-        self.horizontalLayout_3.addWidget(self.login_btn)
+        self.verticalLayout_6.addWidget(self.login_btn)
+        self.remember_checkBox = QtWidgets.QCheckBox(self.centralwidget)
+        self.remember_checkBox.setObjectName("remember_checkBox")
+        self.verticalLayout_6.addWidget(self.remember_checkBox)
+        self.horizontalLayout_3.addLayout(self.verticalLayout_6)
         self.verticalLayout_2.addLayout(self.horizontalLayout_3)
         self.gridLayout.addLayout(self.verticalLayout_2, 0, 0, 1, 1)
         self.setCentralWidget(self.centralwidget)
@@ -351,15 +361,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self.retranslate_login_ui()
         QtCore.QMetaObject.connectSlotsByName(self)
 
-        self.check_configs() # do configs exist else create
+        self.check_configs()   # do configs exist else create
 
-        #buttons here
+        # buttons here
         self.password_input.returnPressed.connect(self.login_btn.click)
         self.login_btn.clicked.connect(self.verify_credentials)
 
     def check_configs(self):
         """
         Checks if config directories and files exist and creates them if they do not
+        If username is found in config execute get_credentials()
         """
         try:
             if not os.path.isdir(self.base_dir):
@@ -369,12 +380,32 @@ class MainWindow(QtWidgets.QMainWindow):
             if not os.path.isdir(self.scripts_path):
                 os.mkdir(self.scripts_path)
             if not os.path.isfile(self.conf_path):
-                self.config['USER'] = {}
-                self.config['SETTINGS'] = {'MAC_RANDOMIZER': 'False', 'KILL_SWITCH': 'False', 'AUTO_CONNECT': 'False'}
+                self.config['USER'] = {
+                    'USER_NAME': 'None'}
+                self.config['SETTINGS'] = {
+                    'MAC_RANDOMIZER': 'False',
+                    'KILL_SWITCH': 'False',
+                    'AUTO_CONNECT': 'False'}
                 self.write_conf()
+
+            self.config.read(self.conf_path)
+            if self.config.get('USER', 'USER_NAME') != 'None':
+                self.statusbar.showMessage("Fetching Saved Credentials", 1000)
+                self.username = self.config.get('USER', 'USER_NAME')
+                self.remember_checkBox.setChecked(True)
+                self.user_input.setText(self.username)
+                self.get_credentials()
 
         except PermissionError:
             self.statusbar.showMessage("Insufficient Permissions to create config folder", 2000)
+
+    def get_credentials(self):
+        try:
+            keyring.get_keyring()
+            password = keyring.get_password('NordVPN', self.username)
+            self.password_input.setText(password)
+        except Exception as ex:
+            self.statusbar.showMessage("Error fetching keyring", 1000)
 
     def write_conf(self):
         """
@@ -399,8 +430,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def verify_credentials(self):
         """
-        Requests a token, salt and key from Nord api
-        Sends a final hash of (salt+password)+key and token to Nord api
+        Requests a token from NordApi by sending the email and password in json format
         Verifies responses and updates GUI
         """
         if self.user_input.text() and self.password_input.text():
@@ -410,6 +440,27 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.statusbar.showMessage('Username or password field cannot be empty', 2000)
         try:
+            # check whether credentials should be saved
+            if self.remember_checkBox.isChecked():
+                try:
+                    keyring.set_password("NordVPN", self.username, self.password)
+                    self.config['USER']['USER_NAME'] = self.username
+                    self.write_conf()
+                except Exception as ex:
+                    self.statusbar.showMessage("Error accessing keyring", 1000)
+                    time.sleep(1)
+
+            # Delete credentials if found
+            else:
+                try:
+                    keyring.delete_password("NordVPN", self.username)
+                    self.config['USER']['USER_NAME'] = 'None'
+                    self.write_conf()
+                except Exception as ex:
+                    self.statusbar.showMessage("No saved credentials to delete", 1000)
+                    time.sleep(0.5)
+
+            # post username and password to api endpoint
             json_data = {'username': self.username, 'password': self.password}
             resp = requests.post('https://api.nordvpn.com/v1/users/tokens', json=json_data, timeout=5)
             if resp.status_code == 201:
@@ -418,7 +469,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 time.sleep(0.5)
                 self.hide()
                 self.main_ui()
-
             else:
                 self.statusbar.showMessage('Invalid Username or Password', 2000)
 
@@ -1198,6 +1248,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.password_label.setText(
             _translate("MainWindow", "<html><head/><body><p align=\"right\">Password:     </p></body></html>"))
         self.login_btn.setText(_translate("MainWindow", "Login"))
+        self.remember_checkBox.setText(_translate("MainWindow", "Remember"))
 
 
 if __name__ == '__main__':
