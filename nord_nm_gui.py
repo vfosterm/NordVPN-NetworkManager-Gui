@@ -5,8 +5,6 @@ import sys
 import os
 import requests
 import shutil
-import json
-import hashlib
 import time
 import subprocess
 import configparser
