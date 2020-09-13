@@ -6,10 +6,13 @@ import os
 import requests
 import shutil
 import time
+import prctl
 import subprocess
 import configparser
 from collections import namedtuple
 from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5.QtWidgets import QSystemTrayIcon, QStyle, QAction, qApp,  QMenu, QCheckBox
+from PyQt5.QtGui import QIcon
 
 connection_type_options = ['UDP', 'TCP']
 server_type_options = ['P2P', 'Standard', 'Double VPN', 'TOR over VPN', 'Dedicated IP'] # , 'Anti-DDoS', 'Obfuscated Server']
@@ -41,7 +44,57 @@ class MainWindow(QtWidgets.QMainWindow):
         self.domain_list = []
         self.server_info_list = []
         self.login_ui()
+
+        """
+        Initialize System Tray Icon
+        """
+        self.trayIcon = QIcon("nordvpnicon.png")
+        self.tray_icon = QSystemTrayIcon(self)
+        self.tray_icon.setIcon(self.trayIcon)
+        show_action = QAction("Show NordVPN Network Manager", self)
+        quit_action = QAction("Exit", self)
+        hide_action = QAction("Minimized", self)
+        show_action.triggered.connect(self.show)
+        hide_action.triggered.connect(self.hide)
+        quit_action.triggered.connect(self.quitAppEvent)
+        self.tray_icon.activated.connect(self.resume)
+        tray_menu = QMenu()
+        tray_menu.addAction(show_action)
+        tray_menu.addAction(hide_action)
+        tray_menu.addAction(quit_action)
+        self.tray_icon.setToolTip("NordVPN NM")
+        self.tray_icon.setContextMenu(tray_menu)
+        self.tray_icon.show()
+
+        """
+        Initialize GUI
+        """
+
+
         self.show()
+
+    def quitAppEvent(self):
+        qApp.quit()
+
+    """
+    Override default close event
+    """
+    def closeEvent(self, event):
+        event.ignore()
+        self.hide()
+        self.tray_icon.showMessage(
+            "NordVPN Network Manager",
+            "NordVPN Network Manager was minimized to System Tray",
+            QSystemTrayIcon.Information,
+            2500
+        )
+
+    """
+    Resume from SystemTray
+    """
+    def resume(self, activation_reason):
+        if activation_reason == 3:
+            self.show()
 
     def main_ui(self):
         """
@@ -1123,7 +1176,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def retranslateUi(self):
         _translate = QtCore.QCoreApplication.translate
         self.setWindowTitle(_translate("MainWindow", " "))
-        self.title_label.setText(_translate("MainWindow", "<html><head/><body><pre align=\"center\" style=\" margin-top:12px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><a name=\"maincontent\"/><span style=\" font-family:\'SF Mono\'; font-size:6pt;\">█</span><span style=\" font-family:\'SF Mono\'; font-size:6pt;\">██╗   ██╗ ██████╗ ██████╗ ██████╗ ██╗   ██╗██████╗ ███╗   ██╗</span></pre><pre align=\"center\" style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-family:\'SF Mono\'; font-size:6pt;\">████╗  ██║██╔═══██╗██╔══██╗██╔══██╗██║   ██║██╔══██╗████╗  ██║</span></pre><pre align=\"center\" style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-family:\'SF Mono\'; font-size:6pt;\">██╔██╗ ██║██║   ██║██████╔╝██║  ██║██║   ██║██████╔╝██╔██╗ ██║</span></pre><pre align=\"center\" style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-family:\'SF Mono\'; font-size:6pt;\">██║╚██╗██║██║   ██║██╔══██╗██║  ██║╚██╗ ██╔╝██╔═══╝ ██║╚██╗██║</span></pre><pre align=\"center\" style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-family:\'SF Mono\'; font-size:6pt;\">██║ ╚████║╚██████╔╝██║  ██║██████╔╝ ╚████╔╝ ██║     ██║ ╚████║</span></pre><pre align=\"center\" style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-family:\'SF Mono\'; font-size:6pt;\">╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝╚═════╝   ╚═══╝  ╚═╝     ╚═╝  ╚═══╝</span></pre></body></html>"))
+        self.title_label.setText(_translate("MainWindow", "<html><head/><body><p align=\"center\"><img src=\"nord-logo.png\"/></p></body></html>"))
         self.country_list_label.setText(_translate("MainWindow", "Countries"))
         self.auto_connect_box.setStatusTip(_translate("MainWindow", "Network Manager will auto-connect on system start"))
         self.auto_connect_box.setText(_translate("MainWindow", "Auto connect"))
@@ -1148,6 +1201,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 if __name__ == '__main__':
+    app_name = "NordVPN"
+    prctl.set_name(app_name)
+    prctl.set_proctitle(app_name)
     app = QtWidgets.QApplication(sys.argv)
     ui = MainWindow()
     sys.exit(app.exec_())
