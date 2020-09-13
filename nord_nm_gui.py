@@ -440,30 +440,31 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.statusbar.showMessage('Username or password field cannot be empty', 2000)
         try:
-            # check whether credentials should be saved
-            if self.remember_checkBox.isChecked():
-                try:
-                    keyring.set_password("NordVPN", self.username, self.password)
-                    self.config['USER']['USER_NAME'] = self.username
-                    self.write_conf()
-                except Exception as ex:
-                    self.statusbar.showMessage("Error accessing keyring", 1000)
-                    time.sleep(1)
-
-            # Delete credentials if found
-            else:
-                try:
-                    keyring.delete_password("NordVPN", self.username)
-                    self.config['USER']['USER_NAME'] = 'None'
-                    self.write_conf()
-                except Exception as ex:
-                    self.statusbar.showMessage("No saved credentials to delete", 1000)
-                    time.sleep(0.5)
 
             # post username and password to api endpoint
             json_data = {'username': self.username, 'password': self.password}
             resp = requests.post('https://api.nordvpn.com/v1/users/tokens', json=json_data, timeout=5)
             if resp.status_code == 201:
+                # check whether credentials should be saved
+                if self.remember_checkBox.isChecked():
+                    try:
+                        keyring.set_password("NordVPN", self.username, self.password)
+                        self.config['USER']['USER_NAME'] = self.username
+                        self.write_conf()
+                    except Exception as ex:
+                        self.statusbar.showMessage("Error accessing keyring", 1000)
+                        time.sleep(1)
+
+                # Delete credentials if found
+                else:
+                    try:
+                        keyring.delete_password("NordVPN", self.username)
+                        self.config['USER']['USER_NAME'] = 'None'
+                        self.write_conf()
+                    except Exception as ex:
+                        self.statusbar.showMessage("No saved credentials to delete", 1000)
+                        time.sleep(0.5)
+
                 self.statusbar.showMessage('Login Success', 2000)
                 self.repaint()
                 time.sleep(0.5)
