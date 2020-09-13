@@ -353,58 +353,27 @@ class MainWindow(QtWidgets.QMainWindow):
         Verifies responses and updates GUI
         """
         if self.user_input.text() and self.password_input.text():
-            self.statusbar.showMessage('Login Success', 2000)
             self.username = self.user_input.text()
             self.password = self.password_input.text()
-            self.repaint()
-            time.sleep(0.5)
-            self.hide()
-            self.main_ui()
+
         else:
-            self.statusbar.showMessage('Username or password field cannot be empty, 2000')
-        # try:
-        #     resp = requests.get('https://apself.statusbar.showMessage('Login Success', 2000)
-    #                         self.username = self.user_input.text()
-    #                         self.password = self.password_input.text()
-    #                         self.repaint()
-    #                         time.sleep(0.5)
-    #                         self.hide()
-    #                         self.main_ui()i.nordvpn.com/token/token/' + self.user_input.text(), timeout=5)
-        #
-        #     if resp.status_code == requests.codes.ok:
-        #         token_json = json.loads(resp.text)
-        #         token = token_json['token']
-        #         salt = token_json['salt']
-        #         key = token_json['key']
-        #
-        #         password_hash = hashlib.sha512(salt.encode() + self.password_input.text().encode())
-        #         final_hash = hashlib.sha512(password_hash.hexdigest().encode() + key.encode())
-        #
-        #         try:
-        #             resp = requests.get('https://api.nordvpn.com/token/verify/' + token + '/' + final_hash.hexdigest(), timeout=5)
-        #             if resp.status_code == requests.codes.ok:
-        #                 self.statusbar.showMessage('Login Success', 2000)
-        #                 self.username = self.user_input.text()
-        #                 self.password = self.password_input.text()
-        #                 self.repaint()
-        #                 time.sleep(0.5)
-        #                 self.hide()
-        #                 self.main_ui()
-        #             else:
-        #                 self.statusbar.showMessage('Invalid Credentials', 2000)
-        #                 self.user_input.clear()
-        #                 self.password_input.clear()
-        #                 self.user_input.setFocus()
-        #         except Exception as ex:
-        #             self.statusbar.showMessage('Invalid Credentials', 2000)
-        #             self.user_input.clear()
-        #             self.password_input.clear()
-        #             self.user_input.setFocus()
-        #     else:
-        #         self.statusbar.showMessage("API Error: could not fetch token", 2000)
-        # except Exception as ex:
-        #     self.statusbar.showMessage("API Error: could not fetch token", 2000)
-        #     self.get_api_data()
+            self.statusbar.showMessage('Username or password field cannot be empty', 2000)
+        try:
+            json_data = {'username': self.username, 'password': self.password}
+            resp = requests.post('https://api.nordvpn.com/v1/users/tokens', json=json_data, timeout=5)
+            if resp.status_code == 201:
+                self.statusbar.showMessage('Login Success', 2000)
+                self.repaint()
+                time.sleep(0.5)
+                self.hide()
+                self.main_ui()
+
+            else:
+                self.statusbar.showMessage('Invalid Username or Password', 2000)
+
+        except Exception as ex:
+            self.statusbar.showMessage("API Error: could not fetch token", 2000)
+            self.get_api_data()
 
     def get_api_data(self):
         """
