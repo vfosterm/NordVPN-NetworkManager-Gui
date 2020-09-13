@@ -5,8 +5,9 @@
 [![commits-since](https://img.shields.io/github/commits-since/vfosterm/NordVPN-NetworkManager-Gui/latest?style=for-the-badge)](https://github.com/vfosterm/NordVPN-NetworkManager-Gui/commits/master)
 [![forthebadge](https://forthebadge.com/images/badges/made-with-python.svg)](https://python.org)
 
-![Login Screen](./screenshots/loginscreen.png)
-![Main Screen](./screenshots/mainscreen.png)
+![Login Screen](./screenshots/login_new.png)
+
+![Main Screen](./screenshots/main_new.png)
 #### About
 NordVPN Network Manager GUI is a graphical frontend for both NordVPN and the system Network Manager.
 All connections are handled directly by the network manager and user secrets are only stored in memory before being passed to the Network Manager.
