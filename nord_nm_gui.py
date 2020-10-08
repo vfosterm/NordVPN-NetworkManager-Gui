@@ -389,7 +389,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.write_conf()
 
             self.config.read(self.conf_path)
-            if self.config.get('USER', 'USER_NAME') != 'None':
+            if (self.config.has_option('USER', 'USER_NAME') and
+                    self.config.get('USER', 'USER_NAME') != 'None'):
                 self.statusbar.showMessage("Fetching Saved Credentials", 1000)
                 self.username = self.config.get('USER', 'USER_NAME')
                 self.remember_checkBox.setChecked(True)
