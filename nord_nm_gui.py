@@ -682,7 +682,8 @@ class MainWindow(QtWidgets.QMainWindow):
                         connection_name = elements[1]
                         country = connection_info[0]
                         print(connection_info)
-                        if '[Standard' in connection_info:  # Normal servers
+                        if ('[Standard' in connection_info or
+                                '[Standard]' in connection_info):  # Normal servers
                             server_name = connection_info[0] + ' ' + connection_info[1]
                         elif '[Double' in connection_info:  # Double VPN server
                             server_name = connection_info[0] + ' ' + '- ' + connection_info[2] + ' ' + connection_info[3]
