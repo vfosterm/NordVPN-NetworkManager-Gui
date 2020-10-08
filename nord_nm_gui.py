@@ -703,6 +703,9 @@ class MainWindow(QtWidgets.QMainWindow):
                             self.repaint()
                             item = self.country_list.findItems(country, QtCore.Qt.MatchExactly)
                             self.country_list.setCurrentItem(item[0])
+                            if ('[Standard' in connection_info or
+                                    '[Standard]' in connection_info):
+                                self.server_type_select.setCurrentIndex(1)
                             if "[Double" in connection_info:
                                 self.server_type_select.setCurrentIndex(2)
                             if "[TOR" in connection_info:
