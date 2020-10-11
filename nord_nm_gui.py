@@ -389,7 +389,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.write_conf()
 
             self.config.read(self.conf_path)
-            if self.config.get('USER', 'USER_NAME') != 'None':
+            if (self.config.has_option('USER', 'USER_NAME') and
+                    self.config.get('USER', 'USER_NAME') != 'None'):
                 self.statusbar.showMessage("Fetching Saved Credentials", 1000)
                 self.username = self.config.get('USER', 'USER_NAME')
                 self.remember_checkBox.setChecked(True)
@@ -681,7 +682,8 @@ class MainWindow(QtWidgets.QMainWindow):
                         connection_name = elements[1]
                         country = connection_info[0]
                         print(connection_info)
-                        if '[Standard' in connection_info:  # Normal servers
+                        if ('[Standard' in connection_info or
+                                '[Standard]' in connection_info):  # Normal servers
                             server_name = connection_info[0] + ' ' + connection_info[1]
                         elif '[Double' in connection_info:  # Double VPN server
                             server_name = connection_info[0] + ' ' + '- ' + connection_info[2] + ' ' + connection_info[3]
@@ -701,6 +703,9 @@ class MainWindow(QtWidgets.QMainWindow):
                             self.repaint()
                             item = self.country_list.findItems(country, QtCore.Qt.MatchExactly)
                             self.country_list.setCurrentItem(item[0])
+                            if ('[Standard' in connection_info or
+                                    '[Standard]' in connection_info):
+                                self.server_type_select.setCurrentIndex(1)
                             if "[Double" in connection_info:
                                 self.server_type_select.setCurrentIndex(2)
                             if "[TOR" in connection_info:
